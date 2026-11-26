@@ -1,0 +1,14 @@
+{
+  "specificationVersion": "0.1.0",
+  "purpose": "In-process cache microbenchmarks, not HTTP or database tests",
+  "dataset": {"count": 100000, "idRange": [1, 100000], "namePattern": "Product {id}", "initialLastUpdatedTime": null},
+  "strategies": ["synchronized", "concurrent", "snapshot", "caffeine"],
+  "excludedFromPerformanceRanking": ["unsafe"],
+  "keyTrace": {"algorithm": "Java SplittableRandom", "seed": 1234567, "length": 4096},
+  "workloads": [
+    {"name": "readOnly", "readers": 4, "writers": 0},
+    {"name": "mixed", "readers": 4, "writers": 1, "batchSize": 16, "operationRatioFixed": false}
+  ],
+  "jmh": {"forks": 2, "warmupIterations": 3, "measurementIterations": 5, "iterationSeconds": 2, "heap": "1g", "profiler": "gc", "mode": "Throughput"},
+  "results": "Not measured in source delivery"
+}

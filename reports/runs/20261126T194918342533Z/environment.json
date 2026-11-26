@@ -1,0 +1,61 @@
+{
+  "utc": "2026-11-26T19:49:18.343816+00:00",
+  "os": "Windows-11-10.0.26300-SP0",
+  "machine": "AMD64",
+  "processor": "Intel64 Family 6 Model 186 Stepping 2, GenuineIntel",
+  "logical_cpu_count": 20,
+  "note": "13th Gen Intel(R) Core(TM) i7-13700H; 32 GB RAM; Windows 11; lab containers stopped; unrelated user containers (keycloak, postgres, ollama idle, k3s) still running",
+  "smoke": false,
+  "java": "openjdk version \"25.0.4.1\" 2026-08-18 LTS\nOpenJDK Runtime Environment Temurin-25.0.4.1+1 (build 25.0.4.1+1-LTS)\nOpenJDK 64-Bit Server VM Temurin-25.0.4.1+1 (build 25.0.4.1+1-LTS, mixed mode, sharing)",
+  "java_system": "Operating System Metrics:\n    No metrics available for this platform\nopenjdk version \"25.0.4.1\" 2026-08-18 LTS\nOpenJDK Runtime Environment Temurin-25.0.4.1+1 (build 25.0.4.1+1-LTS)\nOpenJDK 64-Bit Server VM Temurin-25.0.4.1+1 (build 25.0.4.1+1-LTS, mixed mode, sharing)",
+  "git_commit": "unavailable: fatal: not a git repository (or any of the parent directories): .git",
+  "git_status": "unavailable: fatal: not a git repository (or any of the parent directories): .git",
+  "jar_sha256": "9cca336a52e98857b2106502765afacac4e7bb5563045efe00fca57bf95902a6",
+  "commands": [
+    [
+      "C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.4.101-hotspot\\bin\\java.exe",
+      "-jar",
+      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
+      ".*CacheBenchmark.readOnly$",
+      "-p",
+      "count=100000",
+      "-t",
+      "4",
+      "-rf",
+      "json",
+      "-rff",
+      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\reports\\runs\\20261126T194918342533Z\\readOnly.json",
+      "-prof",
+      "gc"
+    ],
+    [
+      "C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.4.101-hotspot\\bin\\java.exe",
+      "-jar",
+      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
+      ".*CacheBenchmark.mixed$",
+      "-p",
+      "count=100000",
+      "-t",
+      "5",
+      "-rf",
+      "json",
+      "-rff",
+      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\reports\\runs\\20261126T194918342533Z\\mixed.json",
+      "-prof",
+      "gc"
+    ],
+    [
+      "C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.4.101-hotspot\\bin\\java.exe",
+      "-jar",
+      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
+      ".*EngineeringBenchmark.*",
+      "-rf",
+      "json",
+      "-rff",
+      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\reports\\runs\\20261126T194918342533Z\\engineering.json",
+      "-prof",
+      "gc"
+    ]
+  ],
+  "status": "completed"
+}

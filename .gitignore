@@ -1,0 +1,20 @@
+**/target/
+.env
+.idea/
+.vscode/
+*.iml
+__pycache__/
+reports/runs/*
+# Evidence referenced by reports/BENCHMARK_REPORT.md stays versioned:
+!reports/runs/20261126T194918342533Z/
+
+**/bin/
+**/obj/
+**/__pycache__/
+observability/agent.jar
+BenchmarkDotNet.Artifacts/
+
+# BenchmarkDotNet run logs and duplicate exports (keep *-github.md and *.json)
+reports/bdn-runs/**/*.log
+reports/bdn-runs/**/*.html
+reports/bdn-runs/**/*.csv

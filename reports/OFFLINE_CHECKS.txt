@@ -1,0 +1,11 @@
+PASS sequential contract: UnsafeCache
+PASS sequential contract: LockedCache
+PASS sequential contract: ConcurrentCache
+PASS sequential contract: SnapshotCache
+PASS concurrent atomic page: LockedCache
+PASS concurrent atomic page: SnapshotCache
+PASS concurrent map individual records and final state
+PASS unsafe iterator: controlled modification detected
+PASS controlled lost update: unsafe=1, locked=2, atomic=2
+PASS null timestamp watermark logic (no database)
+All dependency-free checks passed on 21.0.12.1+1-1-deb13u1-Debian

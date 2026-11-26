@@ -1,0 +1,141 @@
+services:
+  mysql:
+    image: mysql:8.4
+    command:
+    - --log-bin-trust-function-creators=1
+    environment:
+      MYSQL_DATABASE: backendlab
+      MYSQL_USER: lab
+      MYSQL_PASSWORD: ${DB_PASSWORD:-local-lab-password}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-local-root-password}
+    volumes:
+    - mysql-data:/var/lib/mysql
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysql --protocol=TCP -h 127.0.0.1 -ulab -p"$$MYSQL_PASSWORD" backendlab -e
+        "SELECT 1" >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  app:
+    build:
+      context: .
+      args:
+        JAVA_VERSION: ${JAVA_VERSION:-25}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/backendlab?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=DISABLED&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true
+      DB_USER: lab
+      DB_PASSWORD: ${DB_PASSWORD:-local-lab-password}
+      SERVER_ADDRESS: 0.0.0.0
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      LAB_SEED_COUNT: ${LAB_SEED_COUNT:-100000}
+      LAB_CACHE_STRATEGY: ${LAB_CACHE_STRATEGY:-snapshot}
+      LAB_SYNC_STRATEGY: ${LAB_SYNC_STRATEGY:-journal}
+      LAB_REFRESH_INTERVAL: ${LAB_REFRESH_INTERVAL:-10s}
+      LAB_BATCH_SIZE: ${LAB_BATCH_SIZE:-1000}
+      LAB_VIRTUAL_THREADS: ${LAB_VIRTUAL_THREADS:-false}
+      LAB_MOCK_URL: http://mock-api:8090
+    ports:
+    - 127.0.0.1:${LAB_PORT:-8080}:8080
+  mock-api:
+    image: python:3.13-slim
+    command:
+    - python
+    - /server.py
+    volumes:
+    - ./infrastructure/mock-api/server.py:/server.py:ro
+    ports:
+    - 127.0.0.1:8090:8090
+  jakarta-db:
+    image: mysql:8.4
+    profiles:
+    - jakarta
+    environment:
+      MYSQL_DATABASE: backendlab
+      MYSQL_USER: lab
+      MYSQL_PASSWORD: local-lab-password
+      MYSQL_ROOT_PASSWORD: local-root-password
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysql --protocol=TCP -h 127.0.0.1 -ulab -p"$$MYSQL_PASSWORD" backendlab -e
+        "SELECT 1 FROM product_changes LIMIT 1" >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+    - jakarta-db:/var/lib/mysql
+    - ./implementations/spring-boot/app/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    command:
+    - --log-bin-trust-function-creators=1
+  jakarta:
+    profiles:
+    - jakarta
+    build:
+      context: .
+      dockerfile: implementations/jakarta-ee/Dockerfile
+    depends_on:
+      jakarta-db:
+        condition: service_healthy
+    environment:
+      LAB_ENABLED: 'true'
+      LAB_CACHE_STRATEGY: ${LAB_CACHE_STRATEGY:-snapshot}
+      LAB_MOCK_URL: http://mock-api:8090
+      DB_URL: jdbc:mysql://jakarta-db:3306/backendlab?sslMode=DISABLED&allowPublicKeyRetrieval=true
+      DB_CONNECTION: Server=jakarta-db;Database=backendlab;User ID=lab;Password=local-lab-password
+      LAB_SYNC_STRATEGY: ${LAB_SYNC_STRATEGY:-journal}
+    ports:
+    - 127.0.0.1:${JAKARTA_PORT:-8081}:8080
+  dotnet-db:
+    image: mysql:8.4
+    profiles:
+    - dotnet
+    environment:
+      MYSQL_DATABASE: backendlab
+      MYSQL_USER: lab
+      MYSQL_PASSWORD: local-lab-password
+      MYSQL_ROOT_PASSWORD: local-root-password
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - mysql --protocol=TCP -h 127.0.0.1 -ulab -p"$$MYSQL_PASSWORD" backendlab -e
+        "SELECT 1 FROM product_changes LIMIT 1" >/dev/null 2>&1
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    volumes:
+    - dotnet-db:/var/lib/mysql
+    - ./implementations/spring-boot/app/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    command:
+    - --log-bin-trust-function-creators=1
+  dotnet:
+    profiles:
+    - dotnet
+    build:
+      context: .
+      dockerfile: implementations/aspnet-core/Dockerfile
+      args:
+        DOTNET_VERSION: ${DOTNET_VERSION:-10.0}
+    depends_on:
+      dotnet-db:
+        condition: service_healthy
+    environment:
+      LAB_ENABLED: 'true'
+      LAB_CACHE_STRATEGY: ${LAB_CACHE_STRATEGY:-snapshot}
+      LAB_MOCK_URL: http://mock-api:8090
+      DB_URL: jdbc:mysql://dotnet-db:3306/backendlab?sslMode=DISABLED&allowPublicKeyRetrieval=true
+      DB_CONNECTION: Server=dotnet-db;Database=backendlab;User ID=lab;Password=local-lab-password
+      LAB_SYNC_STRATEGY: ${LAB_SYNC_STRATEGY:-journal}
+    ports:
+    - 127.0.0.1:${DOTNET_PORT:-8082}:8080
+volumes:
+  mysql-data: null
+  jakarta-db: null
+  dotnet-db: null

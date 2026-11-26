@@ -1,0 +1,1930 @@
+[
+ {
+  "id": "spring-j25-platform-snapshot",
+  "title": "Spring Boot / Java 25 / platform threads / snapshot",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.5.1",
+   "thread": "http-nio-0.0.0.0-8080-exec-2"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.686055,
+     "p95": 1.624047,
+     "p99": 8.065216,
+     "max": 54.150024,
+     "avg": 0.9831343651772523,
+     "rps": 1999.8230596046044,
+     "requests": 60001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 200,
+     "container": {
+      "cpu": "88.59%",
+      "mem": "485.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-page",
+    "lab": "01",
+    "path": "/api/products?page=500&size=20",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 6.210756,
+     "p95": 8.848965,
+     "p99": 12.091272,
+     "max": 25.236209,
+     "avg": 6.569878349100598,
+     "rps": 50.02244011829248,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "44.58%",
+      "mem": "452.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.917696,
+     "p95": 609.76861,
+     "p99": 612.886467,
+     "max": 620.724492,
+     "avg": 606.3817117228516,
+     "rps": 49.03711641772627,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "28.74%",
+      "mem": "472.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 604.808164,
+     "p95": 606.670491,
+     "p99": 607.717091,
+     "max": 612.294928,
+     "avg": 604.9780977148582,
+     "rps": 49.04112392755982,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "34.11%",
+      "mem": "493.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.862627,
+     "p95": 304.418782,
+     "p99": 305.227391,
+     "max": 307.722528,
+     "avg": 302.9871473537638,
+     "rps": 49.52904170634633,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "26.22%",
+      "mem": "494.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "di-request",
+    "lab": "06",
+    "path": "/lab/di/instances?mode=request",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 2.649594,
+     "p95": 6.646545,
+     "p99": 8.380923,
+     "max": 12.139488,
+     "avg": 3.0319981892072,
+     "rps": 50.026823471197204,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "19.97%",
+      "mem": "495MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "di-shared",
+    "lab": "06",
+    "path": "/lab/di/instances?mode=shared",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.5991110000000002,
+     "p95": 2.6208320999999994,
+     "p99": 2.99440649,
+     "max": 8.217657,
+     "avg": 1.6260582326666657,
+     "rps": 49.99877628661689,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "6.07%",
+      "mem": "493.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-direct",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=direct&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 3948.4098379999996,
+     "p95": 4598.50257695,
+     "p99": 4629.86613831,
+     "max": 5482.805728,
+     "avg": 3647.3794138548183,
+     "rps": 152.06539006103677,
+     "requests": 5214,
+     "failed_rate": 0,
+     "dropped": 787,
+     "vus_max": 870,
+     "container": {
+      "cpu": "37.40%",
+      "mem": "511.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-event",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=event&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 2.731213,
+     "p95": 4.4116,
+     "p99": 6.47822,
+     "max": 28.376506,
+     "avg": 2.899313327112137,
+     "rps": 200.0136588697704,
+     "requests": 6001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "49.24%",
+      "mem": "508MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "reserve-atomic",
+    "lab": "02",
+    "path": "/lab/concurrency/reserve?mode=atomic&stock=1000&requests=2000",
+    "rate": 50,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.615342,
+     "p95": 2.5792661999999997,
+     "p99": 3.5330340299999996,
+     "max": 35.776574,
+     "avg": 1.7747533573333383,
+     "rps": 49.9978987683072,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "16.12%",
+      "mem": "513.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "reserve-lock",
+    "lab": "02",
+    "path": "/lab/concurrency/reserve?mode=lock&stock=1000&requests=2000",
+    "rate": 50,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.747905,
+     "p95": 2.58165,
+     "p99": 3.275965,
+     "max": 6.254018,
+     "avg": 1.8343871978680868,
+     "rps": 50.028270630768354,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "15.98%",
+      "mem": "513MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "result": {
+     "k6_exit": 0,
+     "p50": 2506.703634,
+     "p95": 3978.5441818,
+     "p99": 4115.41392504,
+     "max": 4142.392022,
+     "avg": 2499.6469275047807,
+     "rps": 322.3539284990234,
+     "requests": 10985,
+     "failed_rate": 0,
+     "dropped": 1016,
+     "vus_max": 1369,
+     "container": {
+      "cpu": "102.09%",
+      "mem": "547.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ],
+  "correctness": {
+   "reserve_unsafe": {
+    "runs": 30,
+    "incorrect": 21,
+    "max_accepted": 150,
+    "min_remaining": 0
+   },
+   "reserve_lock": {
+    "runs": 30,
+    "incorrect": 0
+   },
+   "reserve_atomic": {
+    "runs": 30,
+    "incorrect": 0
+   },
+   "stampede_single_false_32": {
+    "requests": 32,
+    "loads_min": 32,
+    "loads_max": 32
+   },
+   "stampede_single_false_100": {
+    "requests": 100,
+    "loads_min": 32,
+    "loads_max": 32
+   },
+   "stampede_single_true_32": {
+    "requests": 32,
+    "loads_min": 1,
+    "loads_max": 1
+   },
+   "stampede_single_true_100": {
+    "requests": 100,
+    "loads_min": 1,
+    "loads_max": 1
+   },
+   "pool_32_permits5": {
+    "peak_max": 5,
+    "rejected_min": 12,
+    "rejected_max": 12
+   },
+   "pool_100_permits5": {
+    "peak_max": 5,
+    "rejected_min": 51,
+    "rejected_max": 53
+   },
+   "di": {
+    "shared_same_id": true,
+    "request_distinct_id": true
+   }
+  },
+  "cpu": {
+   "sequential": {
+    "median_ms": 114.282675,
+    "min_ms": 97.055819,
+    "max_ms": 142.903482,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-2": {
+    "median_ms": 62.357241,
+    "min_ms": 54.059177,
+    "max_ms": 76.291979,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-4": {
+    "median_ms": 33.838461,
+    "min_ms": 29.817807,
+    "max_ms": 37.494595,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-8": {
+    "median_ms": 27.380328,
+    "min_ms": 22.048896,
+    "max_ms": 58.315106,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "jakarta-j25-snapshot",
+  "title": "Jakarta EE (WildFly 42) / Java 25 / snapshot",
+  "cpus": 4,
+  "env": {
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "thread": "default task-2",
+   "runtime": "25.0.4.1"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 754.45813,
+     "p95": 1186.94181375,
+     "p99": 1501.3403414999998,
+     "max": 2988.144557,
+     "avg": 770.63165730516,
+     "rps": 1206.5555291889023,
+     "requests": 36866,
+     "failed_rate": 0,
+     "dropped": 23135,
+     "vus_max": 1000,
+     "container": {
+      "cpu": "452.95%",
+      "mem": "629.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-page",
+    "lab": "01",
+    "path": "/api/products?page=500&size=20",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 8.449258,
+     "p95": 11.807443199999998,
+     "p99": 15.003902569999997,
+     "max": 30.594409,
+     "avg": 8.749295170000007,
+     "rps": 49.99732892603368,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "48.80%",
+      "mem": "629.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 606.009214,
+     "p95": 608.846888,
+     "p99": 610.475988,
+     "max": 612.086209,
+     "avg": 606.3513096249176,
+     "rps": 49.03612793886797,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "33.42%",
+      "mem": "637.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.5013799999999,
+     "p95": 607.6172863500001,
+     "p99": 608.97367519,
+     "max": 627.365126,
+     "avg": 605.7417147666666,
+     "rps": 49.03928366979244,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "42.23%",
+      "mem": "638.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 303.43210550000003,
+     "p95": 304.88478245,
+     "p99": 305.91920583,
+     "max": 325.01668,
+     "avg": 303.5824909233338,
+     "rps": 49.531297637334326,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "22.34%",
+      "mem": "635.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "di-request",
+    "lab": "06",
+    "path": "/lab/di/instances?mode=request",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 3.604035,
+     "p95": 8.278022,
+     "p99": 12.440904,
+     "max": 71.100429,
+     "avg": 4.191535920053303,
+     "rps": 50.02688290207075,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "64.09%",
+      "mem": "635.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "di-shared",
+    "lab": "06",
+    "path": "/lab/di/instances?mode=shared",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.588292,
+     "p95": 2.140035,
+     "p99": 2.715801,
+     "max": 7.271879,
+     "avg": 1.6419071592271794,
+     "rps": 50.02910294576426,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "7.57%",
+      "mem": "633.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-direct",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=direct&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.515706,
+     "p95": 2.323694,
+     "p99": 3.067669,
+     "max": 11.076908,
+     "avg": 1.580593142309617,
+     "rps": 200.0131878983745,
+     "requests": 6001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "28.89%",
+      "mem": "635.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-event",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=event&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 2.413882,
+     "p95": 4.648178,
+     "p99": 9.996471,
+     "max": 61.396898,
+     "avg": 2.708032855024165,
+     "rps": 200.00591566905484,
+     "requests": 6001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "46.59%",
+      "mem": "635MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "reserve-atomic",
+    "lab": "02",
+    "path": "/lab/concurrency/reserve?mode=atomic&stock=1000&requests=2000",
+    "rate": 50,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 4.152812,
+     "p95": 6.361314,
+     "p99": 8.340706,
+     "max": 38.148494,
+     "avg": 4.431752595602929,
+     "rps": 50.023326213612734,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "29.83%",
+      "mem": "642.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "reserve-lock",
+    "lab": "02",
+    "path": "/lab/concurrency/reserve?mode=lock&stock=1000&requests=2000",
+    "rate": 50,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 4.346485,
+     "p95": 6.707002,
+     "p99": 8.681905,
+     "max": 16.116291,
+     "avg": 4.60815651432379,
+     "rps": 50.022590391780135,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "37.37%",
+      "mem": "639.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "result": {
+     "k6_exit": 99,
+     "p50": 10000.1556,
+     "p95": 10000.955792,
+     "p99": 10001.397189,
+     "max": 10032.559336,
+     "avg": 9719.3351107045,
+     "rps": 210.009262514894,
+     "requests": 8401,
+     "failed_rate": 0.8827520533269849,
+     "dropped": 3599,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "47.08%",
+      "mem": "658.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ],
+  "correctness": {
+   "reserve_unsafe": {
+    "runs": 30,
+    "incorrect": 29,
+    "max_accepted": 144,
+    "min_remaining": 0
+   },
+   "reserve_lock": {
+    "runs": 30,
+    "incorrect": 0
+   },
+   "reserve_atomic": {
+    "runs": 30,
+    "incorrect": 0
+   },
+   "stampede_single_false_32": {
+    "requests": 32,
+    "loads_min": 8,
+    "loads_max": 8
+   },
+   "stampede_single_false_100": {
+    "requests": 100,
+    "loads_min": 8,
+    "loads_max": 8
+   },
+   "stampede_single_true_32": {
+    "requests": 32,
+    "loads_min": 1,
+    "loads_max": 1
+   },
+   "stampede_single_true_100": {
+    "requests": 100,
+    "loads_min": 1,
+    "loads_max": 1
+   },
+   "pool_32_permits5": {
+    "peak_max": 5,
+    "rejected_min": 0,
+    "rejected_max": 3
+   },
+   "pool_100_permits5": {
+    "peak_max": 5,
+    "rejected_min": 4,
+    "rejected_max": 8
+   },
+   "di": {
+    "shared_same_id": true,
+    "request_distinct_id": true
+   }
+  },
+  "cpu": {
+   "sequential": {
+    "median_ms": 113.712639,
+    "min_ms": 103.209389,
+    "max_ms": 131.69954,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-2": {
+    "median_ms": 62.4854,
+    "min_ms": 56.328419,
+    "max_ms": 69.334664,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-4": {
+    "median_ms": 40.907464,
+    "min_ms": 32.873015,
+    "max_ms": 46.227401,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-8": {
+    "median_ms": 26.918481,
+    "min_ms": 21.660887,
+    "max_ms": 52.429468,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "dotnet10-snapshot",
+  "title": "ASP.NET Core / .NET 10 / snapshot",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "10.0",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 4,
+   "threadPool": 5
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.001423,
+     "p95": 9.382617,
+     "p99": 37.826594,
+     "max": 105.706186,
+     "avg": 2.673378498758345,
+     "rps": 1999.8576337743984,
+     "requests": 60001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 200,
+     "container": {
+      "cpu": "171.01%",
+      "mem": "140.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-page",
+    "lab": "01",
+    "path": "/api/products?page=500&size=20",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 47.415918500000004,
+     "p95": 72.35411985,
+     "p99": 97.58931589,
+     "max": 159.598985,
+     "avg": 50.08478729999992,
+     "rps": 49.96598679704348,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "260.98%",
+      "mem": "92.62MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 99,
+     "p50": 9999.970052,
+     "p95": 10000.769625,
+     "p99": 10000.959739119999,
+     "max": 10001.372528,
+     "avg": 9116.061752905998,
+     "rps": 28.737623902223564,
+     "requests": 1149,
+     "failed_rate": 1,
+     "dropped": 351,
+     "vus_max": 451,
+     "container": {
+      "cpu": "1.46%",
+      "mem": "151.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 603.734883,
+     "p95": 605.747912,
+     "p99": 607.027809,
+     "max": 614.512248,
+     "avg": 603.9719164177203,
+     "rps": 49.043078660245556,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "15.13%",
+      "mem": "208.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.508218,
+     "p95": 303.7069,
+     "p99": 304.500303,
+     "max": 305.942146,
+     "avg": 302.6040277934708,
+     "rps": 49.53121980699782,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "14.54%",
+      "mem": "223.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "di-request",
+    "lab": "06",
+    "path": "/lab/di/instances?mode=request",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 5.767994,
+     "p95": 42.983449,
+     "p99": 61.975859,
+     "max": 95.054726,
+     "avg": 10.446352752165229,
+     "rps": 50.022262929668095,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "62.27%",
+      "mem": "249.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "di-shared",
+    "lab": "06",
+    "path": "/lab/di/instances?mode=shared",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.785289,
+     "p95": 1.476385,
+     "p99": 2.155261,
+     "max": 16.544487,
+     "avg": 0.9049780226515642,
+     "rps": 50.02891855642978,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "4.06%",
+      "mem": "303.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-direct",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=direct&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.860589,
+     "p95": 1.5113583,
+     "p99": 1.923220140000001,
+     "max": 34.062865,
+     "avg": 0.9370749553333333,
+     "rps": 199.98947139428688,
+     "requests": 6000,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "19.53%",
+      "mem": "283.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-event",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=event&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.794374,
+     "p95": 1.306345,
+     "p99": 1.626539,
+     "max": 7.10842,
+     "avg": 0.8350131224795875,
+     "rps": 200.01617929907766,
+     "requests": 6001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "23.34%",
+      "mem": "284.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "reserve-atomic",
+    "lab": "02",
+    "path": "/lab/concurrency/reserve?mode=atomic&stock=1000&requests=2000",
+    "rate": 50,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.871233,
+     "p95": 1.39404,
+     "p99": 1.852009,
+     "max": 43.762907,
+     "avg": 0.9719665642904751,
+     "rps": 50.029776989983226,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "5.49%",
+      "mem": "286.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "reserve-lock",
+    "lab": "02",
+    "path": "/lab/concurrency/reserve?mode=lock&stock=1000&requests=2000",
+    "rate": 50,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.926392,
+     "p95": 1.580749,
+     "p99": 2.329246,
+     "max": 3.848459,
+     "avg": 1.0109211912058629,
+     "rps": 50.030114959409474,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "13.22%",
+      "mem": "296.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "result": {
+     "k6_exit": 99,
+     "p50": 0,
+     "p95": 10000.185166300002,
+     "p99": 10000.738465350001,
+     "max": 10001.4238,
+     "avg": 2406.1141625346695,
+     "rps": 204.0908251122639,
+     "requests": 8164,
+     "failed_rate": 1,
+     "dropped": 3837,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "4.01%",
+      "mem": "328.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ],
+  "correctness": {
+   "reserve_unsafe": {
+    "runs": 30,
+    "incorrect": 11,
+    "max_accepted": 185,
+    "min_remaining": 0
+   },
+   "reserve_lock": {
+    "runs": 30,
+    "incorrect": 0
+   },
+   "reserve_atomic": {
+    "runs": 30,
+    "incorrect": 0
+   },
+   "stampede_single_false_32": {
+    "requests": 32,
+    "loads_min": 32,
+    "loads_max": 32
+   },
+   "stampede_single_false_100": {
+    "requests": 100,
+    "loads_min": 100,
+    "loads_max": 100
+   },
+   "stampede_single_true_32": {
+    "requests": 32,
+    "loads_min": 1,
+    "loads_max": 1
+   },
+   "stampede_single_true_100": {
+    "requests": 100,
+    "loads_min": 1,
+    "loads_max": 1
+   },
+   "pool_32_permits5": {
+    "peak_max": 5,
+    "rejected_min": 12,
+    "rejected_max": 12
+   },
+   "pool_100_permits5": {
+    "peak_max": 5,
+    "rejected_min": 80,
+    "rejected_max": 80
+   },
+   "di": {
+    "shared_same_id": true,
+    "request_distinct_id": true
+   }
+  },
+  "cpu": {
+   "sequential": {
+    "median_ms": 122.2434,
+    "min_ms": 100.9629,
+    "max_ms": 165.8118,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-2": {
+    "median_ms": 65.9452,
+    "min_ms": 63.0138,
+    "max_ms": 71.7758,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-4": {
+    "median_ms": 36.4675,
+    "min_ms": 33.6384,
+    "max_ms": 44.6798,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-8": {
+    "median_ms": 25.4405,
+    "min_ms": 22.2699,
+    "max_ms": 62.158,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "dotnet11-snapshot",
+  "title": "ASP.NET Core / .NET 11 / snapshot",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "11.0",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "runtime": "11.0.0",
+   "processors": 4,
+   "threadPool": 5
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.931442,
+     "p95": 17.463941,
+     "p99": 48.066708,
+     "max": 136.911723,
+     "avg": 3.7201714242095956,
+     "rps": 1999.9369559047764,
+     "requests": 60001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 200,
+     "container": {
+      "cpu": "163.73%",
+      "mem": "113.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "result": {
+     "k6_exit": 99,
+     "p50": 2854.065101,
+     "p95": 10000.209509549999,
+     "p99": 10000.77272143,
+     "max": 10001.49992,
+     "avg": 3762.646879410005,
+     "rps": 204.43457521708703,
+     "requests": 8178,
+     "failed_rate": 1,
+     "dropped": 3823,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "1.99%",
+      "mem": "160.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ],
+  "cpu": {
+   "sequential": {
+    "median_ms": 132.6377,
+    "min_ms": 116.5541,
+    "max_ms": 179.8705,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-2": {
+    "median_ms": 69.5678,
+    "min_ms": 62.8966,
+    "max_ms": 72.4149,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-4": {
+    "median_ms": 43.3439,
+    "min_ms": 40.2681,
+    "max_ms": 56.835,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "parallel-8": {
+    "median_ms": 30.8066,
+    "min_ms": 24.0294,
+    "max_ms": 60.6343,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 4
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu1-spring",
+  "title": "spring CPU quota 1",
+  "cpus": 1,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false"
+  },
+  "info": {
+   "virtual": false,
+   "thread": "http-nio-0.0.0.0-8080-exec-3",
+   "runtime": "25.0.5.1"
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 122.002082,
+    "min_ms": 108.599068,
+    "max_ms": 154.512039,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-2": {
+    "median_ms": 106.27643,
+    "min_ms": 82.340823,
+    "max_ms": 182.185606,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-4": {
+    "median_ms": 102.670163,
+    "min_ms": 74.036857,
+    "max_ms": 186.018625,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-8": {
+    "median_ms": 181.927399,
+    "min_ms": 91.420341,
+    "max_ms": 191.535297,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu1-jakarta",
+  "title": "jakarta CPU quota 1",
+  "cpus": 1,
+  "env": {},
+  "info": {
+   "thread": "default task-4",
+   "runtime": "25.0.4.1"
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 127.498136,
+    "min_ms": 107.168288,
+    "max_ms": 161.830068,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-2": {
+    "median_ms": 111.461267,
+    "min_ms": 94.269901,
+    "max_ms": 264.378259,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-4": {
+    "median_ms": 108.476252,
+    "min_ms": 92.037064,
+    "max_ms": 185.286797,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-8": {
+    "median_ms": 118.971173,
+    "min_ms": 106.673247,
+    "max_ms": 199.825784,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu1-dotnet",
+  "title": "dotnet CPU quota 1",
+  "cpus": 1,
+  "env": {
+   "DOTNET_VERSION": "10.0"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 1,
+   "threadPool": 2
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 125.637,
+    "min_ms": 105.2995,
+    "max_ms": 163.258,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-2": {
+    "median_ms": 108.1526,
+    "min_ms": 88.1724,
+    "max_ms": 177.8028,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-4": {
+    "median_ms": 123.3978,
+    "min_ms": 89.2374,
+    "max_ms": 185.6333,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "parallel-8": {
+    "median_ms": 124.1768,
+    "min_ms": 100.7258,
+    "max_ms": 202.3725,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 1
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu2-spring",
+  "title": "spring CPU quota 2",
+  "cpus": 2,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false"
+  },
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.5.1",
+   "thread": "http-nio-0.0.0.0-8080-exec-3"
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 126.001647,
+    "min_ms": 104.649536,
+    "max_ms": 149.000537,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-2": {
+    "median_ms": 63.974305,
+    "min_ms": 53.84307,
+    "max_ms": 71.658715,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-4": {
+    "median_ms": 82.040172,
+    "min_ms": 38.846266,
+    "max_ms": 93.495821,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-8": {
+    "median_ms": 88.378214,
+    "min_ms": 27.258423,
+    "max_ms": 95.083935,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu2-jakarta",
+  "title": "jakarta CPU quota 2",
+  "cpus": 2,
+  "env": {},
+  "info": {
+   "thread": "default task-2",
+   "runtime": "25.0.4.1"
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 167.467851,
+    "min_ms": 138.647942,
+    "max_ms": 188.673354,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-2": {
+    "median_ms": 68.342133,
+    "min_ms": 58.106023,
+    "max_ms": 75.075533,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-4": {
+    "median_ms": 80.485152,
+    "min_ms": 33.821204,
+    "max_ms": 102.55194,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-8": {
+    "median_ms": 69.113549,
+    "min_ms": 29.716526,
+    "max_ms": 91.325946,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu2-dotnet",
+  "title": "dotnet CPU quota 2",
+  "cpus": 2,
+  "env": {
+   "DOTNET_VERSION": "10.0"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 2,
+   "threadPool": 4
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 142.891,
+    "min_ms": 109.5437,
+    "max_ms": 236.8983,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-2": {
+    "median_ms": 76.8253,
+    "min_ms": 67.2821,
+    "max_ms": 119.0627,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-4": {
+    "median_ms": 83.8442,
+    "min_ms": 32.7582,
+    "max_ms": 101.5742,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "parallel-8": {
+    "median_ms": 85.1553,
+    "min_ms": 18.0655,
+    "max_ms": 93.8953,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 2
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu8-spring",
+  "title": "spring CPU quota 8",
+  "cpus": 8,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false"
+  },
+  "info": {
+   "thread": "http-nio-0.0.0.0-8080-exec-2",
+   "virtual": false,
+   "runtime": "25.0.5.1"
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 132.34549,
+    "min_ms": 102.582485,
+    "max_ms": 153.058611,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-2": {
+    "median_ms": 74.423282,
+    "min_ms": 64.908079,
+    "max_ms": 85.685688,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-4": {
+    "median_ms": 48.815687,
+    "min_ms": 36.933195,
+    "max_ms": 67.31076,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-8": {
+    "median_ms": 28.628873,
+    "min_ms": 25.140916,
+    "max_ms": 37.179212,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu8-jakarta",
+  "title": "jakarta CPU quota 8",
+  "cpus": 8,
+  "env": {},
+  "info": {
+   "runtime": "25.0.4.1",
+   "thread": "default task-4"
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 131.232198,
+    "min_ms": 117.993837,
+    "max_ms": 166.287305,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-2": {
+    "median_ms": 65.523171,
+    "min_ms": 59.144641,
+    "max_ms": 81.381005,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-4": {
+    "median_ms": 47.459262,
+    "min_ms": 37.296019,
+    "max_ms": 58.72687,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-8": {
+    "median_ms": 36.354599,
+    "min_ms": 28.750597,
+    "max_ms": 47.353018,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "all_checksums_equal": true
+  }
+ },
+ {
+  "id": "cpu8-dotnet",
+  "title": "dotnet CPU quota 8",
+  "cpus": 8,
+  "env": {
+   "DOTNET_VERSION": "10.0"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 8,
+   "threadPool": 8
+  },
+  "k6": [],
+  "cpu": {
+   "sequential": {
+    "median_ms": 159.0625,
+    "min_ms": 131.7016,
+    "max_ms": 208.7311,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-2": {
+    "median_ms": 108.6533,
+    "min_ms": 89.7405,
+    "max_ms": 166.8834,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-4": {
+    "median_ms": 50.9382,
+    "min_ms": 43.3846,
+    "max_ms": 66.4971,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "parallel-8": {
+    "median_ms": 26.581,
+    "min_ms": 23.445,
+    "max_ms": 30.531,
+    "checksum": "-980176603291609351",
+    "checksums_equal": true,
+    "processors": 8
+   },
+   "all_checksums_equal": true
+  }
+ }
+]

@@ -1,0 +1,2 @@
+PASS: atomic/lock reservation; sequential/parallel checksum; single-flight; pool bound
+PASS: three real HTTP I/O strategies against local mock

@@ -1,0 +1,151 @@
+openapi: 3.1.0
+info:
+  title: Backend Engineering Lab — Product Cache
+  version: 0.1.0
+  description: Local-only API contract. Writes commit to the database before the periodically refreshed cache reflects them. No read-your-writes guarantee.
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/products:
+    get:
+      operationId: listProducts
+      summary: Read a sorted page from the cache
+      parameters:
+        - {name: page, in: query, schema: {type: integer, minimum: 1, default: 1}}
+        - {name: size, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 10}}
+        - {name: search, in: query, schema: {type: string, maxLength: 255, default: ''}}
+      responses:
+        '200':
+          description: Filtered products, sorted by ID
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ProductPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '503': {$ref: '#/components/responses/NotReady'}
+    post:
+      operationId: createProduct
+      summary: Insert a product with null timestamp
+      requestBody: {$ref: '#/components/requestBodies/Name'}
+      responses:
+        '201':
+          description: Database insert committed; cache may not contain product yet
+          headers:
+            Location: {schema: {type: string}, description: Relative URL of created resource}
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, cacheVisibility]
+                properties:
+                  id: {type: integer, format: int64}
+                  cacheVisibility: {type: string}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '503': {$ref: '#/components/responses/NotReady'}
+  /api/products/{id}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer, format: int64}}
+    get:
+      operationId: getProduct
+      responses:
+        '200':
+          description: Cached product
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Product'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/NotReady'}
+    put:
+      operationId: renameProduct
+      requestBody: {$ref: '#/components/requestBodies/Name'}
+      responses:
+        '204': {description: Database update committed; cache catches up later}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/NotReady'}
+    delete:
+      operationId: deleteProduct
+      responses:
+        '204': {description: Database delete committed; journal mode catches up later}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/NotReady'}
+  /api/cache/status:
+    get:
+      operationId: getCacheStatus
+      responses:
+        '200':
+          description: Observed cache status (not a freshness guarantee)
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CacheStatus'}
+  /lab/cache/refresh:
+    post:
+      operationId: refreshCache
+      description: Available only when the lab profile is enabled; not for public deployment.
+      responses:
+        '200':
+          description: Refresh completed
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RefreshResult'}
+        '409':
+          description: Not ready or another refresh is active
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RefreshResult'}
+        '404': {description: Lab profile disabled}
+  /actuator/health:
+    get:
+      operationId: getHealth
+      responses:
+        '200': {description: Basic health check succeeded}
+        '503': {description: Health check failed}
+components:
+  requestBodies:
+    Name:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name]
+            properties:
+              name: {type: string, minLength: 1, maxLength: 255, description: Must not be blank}
+  responses:
+    BadRequest: {description: Invalid input}
+    NotFound: {description: Product not found in the relevant data source}
+    NotReady: {description: Cache has not completed initialization}
+  schemas:
+    Product:
+      type: object
+      required: [id, name, lastUpdatedTime]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        lastUpdatedTime: {type: [string, 'null'], format: date-time}
+    ProductPage:
+      type: object
+      required: [page, size, total, items]
+      properties:
+        page: {type: integer}
+        size: {type: integer}
+        total: {type: integer, format: int64}
+        items: {type: array, items: {$ref: '#/components/schemas/Product'}}
+    CacheStatus:
+      type: object
+      required: [ready, strategy, sync, products, lastSuccess, durationMillis, changes, lastError]
+      properties:
+        ready: {type: boolean}
+        strategy: {type: string, enum: [unsafe, synchronized, concurrent, snapshot, caffeine]}
+        sync: {type: string, enum: [journal, watermark]}
+        products: {type: integer}
+        lastSuccess: {type: [string, 'null'], format: date-time}
+        durationMillis: {type: integer, format: int64}
+        changes: {type: integer}
+        lastError: {type: [string, 'null']}
+    RefreshResult:
+      type: object
+      required: [ran, changed, reason]
+      properties:
+        ran: {type: boolean}
+        changed: {type: integer}
+        reason: {type: string}

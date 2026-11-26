@@ -1,0 +1,17 @@
+services:
+  app:
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/agent.jar
+      OTEL_SERVICE_NAME: backendlab-spring
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_LOGS_EXPORTER: none
+    volumes: ['./observability/agent.jar:/otel/agent.jar:ro']
+  jakarta:
+    environment:
+      JAVA_TOOL_OPTIONS: -javaagent:/otel/agent.jar
+      OTEL_SERVICE_NAME: backendlab-jakarta
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_LOGS_EXPORTER: none
+    volumes: ['./observability/agent.jar:/otel/agent.jar:ro']

@@ -1,0 +1,10 @@
+services:
+  app:
+    cpus: ${LAB_CPUS:-4}
+    mem_limit: ${LAB_MEMORY:-2g}
+  jakarta:
+    cpus: ${LAB_CPUS:-4}
+    mem_limit: ${LAB_MEMORY:-2g}
+  dotnet:
+    cpus: ${LAB_CPUS:-4}
+    mem_limit: ${LAB_MEMORY:-2g}

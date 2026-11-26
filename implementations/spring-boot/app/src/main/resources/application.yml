@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: backend-engineering-lab
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/backendlab?connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&sslMode=DISABLED&allowPublicKeyRetrieval=true&rewriteBatchedStatements=true}
+    username: ${DB_USER:lab}
+    password: ${DB_PASSWORD:local-lab-password}
+    hikari:
+      maximum-pool-size: 10
+  jackson:
+    default-property-inclusion: always
+  sql:
+    init:
+      mode: always
+  threads:
+    virtual:
+      enabled: ${LAB_VIRTUAL_THREADS:false}
+server:
+  address: ${SERVER_ADDRESS:127.0.0.1}
+  port: ${SERVER_PORT:8080}
+management:
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+lab:
+  seed-count: ${LAB_SEED_COUNT:100000}
+  cache:
+    strategy: ${LAB_CACHE_STRATEGY:snapshot}
+  sync:
+    strategy: ${LAB_SYNC_STRATEGY:journal}
+    batch-size: ${LAB_BATCH_SIZE:1000}
+  refresh-interval: ${LAB_REFRESH_INTERVAL:10s}
+
+  # Histogram publishing is configured under management below via the additional property.

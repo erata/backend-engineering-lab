@@ -1,0 +1,7 @@
+test_non_finite_error (test_report_generator.ReportTests.test_non_finite_error) ... ok
+test_report_formats_rows_and_subscores (test_report_generator.ReportTests.test_report_formats_rows_and_subscores) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.002s
+
+OK
