@@ -31,11 +31,11 @@ plt.rcParams.update({'svg.fonttype': 'none', 'font.family': ['Segoe UI', 'DejaVu
 
 # ---------------------------------------------------------------- data loading
 def v2_runs():
-    """All run folders containing v2/v3 phases, oldest first (a later run's phase replaces an earlier one with the same id)."""
+    """All run folders containing v2/v3/v4 phases, oldest first (a later run's phase replaces an earlier one with the same id)."""
     out = []
     for d in sorted((ROOT / 'reports/http-runs').iterdir()):
         env = d / 'environment.json'
-        if env.exists() and any(p.startswith(('v2-', 'v3-')) for p in json.loads(env.read_text()).get('phases', [])):
+        if env.exists() and any(p.startswith(('v2-', 'v3-', 'v4-')) for p in json.loads(env.read_text()).get('phases', [])):
             out.append(d)
     return out
 V2 = v2_runs()
@@ -149,8 +149,10 @@ def lab02(t, mode):
     save(fig, 'lab02-unsafe', mode, top=0.74)
 
 def lab03(t, mode):
-    ph = phases(RUN2)
-    eds = {'Spring Boot': 'spring-j25-platform-snapshot', 'Jakarta EE': 'jakarta-j25-snapshot', 'ASP.NET Core': 'dotnet10-snapshot'}
+    """v4 phases (asyncio upstream), median of 5 runs; a mode whose runs mostly failed is shown as text."""
+    ph = phases(V2)
+    eds = {'Spring Boot': 'v4-rep5-spring-j25-platform', 'Jakarta EE': 'v4-rep5-jakarta', 'ASP.NET Core': 'v4-rep5-dotnet10'}
+    if not all(p in ph for p in eds.values()): return
     modes = ['blocking', 'sequential-async', 'concurrent']
     vals = {e: {m: (med([r['p50'] for r in k6(ph[p], f'io-{m}') if (r['failed_rate'] or 0) < 0.01]) or None) for m in modes} for e, p in eds.items()}
     fig, ax = figure(t, h=3.3)
@@ -162,12 +164,12 @@ def lab03(t, mode):
     ax.set_ylim(0, 700)
     lg = ax.legend(*ax.get_legend_handles_labels(), loc='lower left', bbox_to_anchor=(0, 1.0), ncols=3, frameon=False, fontsize=9)
     for x in lg.get_texts(): x.set_color(t['ink2'])
-    title(fig, t, 'Lab 03 · Aggregating three slow services (50 req/s)', 'Only the concurrent fan-out halves latency. .NET sync-over-async starves its ThreadPool.')
+    title(fig, t, 'Lab 03 · Aggregating three slow services (50 req/s, median of 5 runs)', 'Only the concurrent fan-out halves latency. .NET blocking = sync-over-async: median of the successful runs; run 1 after start starved (85 % failed).')
     save(fig, 'lab03-io', mode, top=0.76)
 
 def lab04(t, mode):
     ph = phases(V2)
-    cfg = [('Java 17 · platform', 'v2-rep5-spring-j17-platform'), ('Java 25 · platform', 'v2-rep5-spring-j25-platform'), ('Java 25 · virtual', 'v2-rep5-spring-j25-virtual')]
+    cfg = [('Java 17 · platform', 'v4-rep5-spring-j17-platform'), ('Java 25 · platform', 'v4-rep5-spring-j25-platform'), ('Java 25 · virtual', 'v4-rep5-spring-j25-virtual')]
     if not all(p in ph for _, p in cfg): return
     rs = [k6(ph[p], 'io-blocking-400rps') for _, p in cfg]
     fig, (a1, a2) = figure(t, w=7.8, h=2.9, ncols=2)
@@ -192,15 +194,17 @@ def lab04(t, mode):
               f'{pin[0][1]["synchronized"]["carriers"]} carrier threads. JDK 21 pins carriers in synchronized; JDK 24+ (JEP 491) does not.')
         save(fig, 'lab04-pinning', mode, top=0.76)
 
-    jk = ph.get('v2-new-jakarta')
+    jk = ph.get('v4-rep3-jakarta-saturation')
     if jk:
-        rows = [(f'WildFly · {x} executor', k6(jk, f'io-blocking-async-{x}-400rps')) for x in ('default', 'virtual')]
+        rows = [('WildFly · worker thread', k6(jk, 'io-blocking-400rps'))] + [(f'WildFly · {x} executor', k6(jk, f'io-blocking-async-{x}-400rps')) for x in ('default', 'virtual')]
         if all(r for _, r in rows):
-            fig, (a1, a2) = figure(t, w=7.8, h=2.3, ncols=2)
-            hbars(a1, t, [l for l, _ in rows], [r[0]['rps'] for _, r in rows], [t['series'][1], t['series'][0]], lambda v: f'{v:.0f}')
-            a1.axvline(400, color=t['ink2'], linewidth=1, linestyle=(0, (4, 3))); a1.set_xlabel('achieved req/s (target 400)', color=t['ink2'])
-            hbars(a2, t, ['', ''], [r[0]['p50'] for _, r in rows], [t['series'][1], t['series'][0]], lambda v: f'{v:,.0f} ms')
-            a2.set_xlabel('p50 latency (ms)', color=t['ink2'])
+            fig, (a1, a2) = figure(t, w=8.2, h=2.7, ncols=2)
+            cols = [t['series'][1], t['series'][1], t['series'][0]]
+            okr = [med([x['rps'] * (1 - (x['failed_rate'] or 0)) for x in r]) for _, r in rows]
+            hbars(a1, t, [l for l, _ in rows], okr, cols, lambda v: f'{v:.0f}')
+            a1.axvline(400, color=t['ink2'], linewidth=1, linestyle=(0, (4, 3))); a1.set_xlabel('successful req/s (target 400), median of 3', color=t['ink2'])
+            hbars(a2, t, ['', '', ''], [med([x['p50'] for x in r]) for _, r in rows], cols, lambda v: f'{v:,.0f} ms')
+            a2.set_xlabel('p50 latency (ms), median of 3', color=t['ink2'])
             title(fig, t, 'Lab 04 · Jakarta Concurrency 3.1 virtual executor on WildFly 42', 'Same blocking chain, async JAX-RS response; only the managed executor differs.')
             save(fig, 'lab04-wildfly-virtual', mode, top=0.70)
 
@@ -209,7 +213,7 @@ def lab05(t, mode):
     bdn = {}
     for f in glob.glob(str(BDN / 'CpuBench-report-full-compressed.json')):
         for b in json.loads(Path(f).read_text())['Benchmarks']:
-            bdn[str(b['Parameters']).split('=')[-1]] = b['Statistics']['Median'] / 1e6
+            bdn[str(b['Parameters']).split('=')[-1]] = b['Statistics']['Mean'] / 1e6   # mean, like the BDN report table
     ws = ['1', '2', '4', '8']
     fig, (a1, a2) = figure(t, w=8.0, h=3.2, ncols=2)
     for ax in (a1, a2):
@@ -283,7 +287,8 @@ def lab07(t, mode):
     ax.set_yticks(range(len(rows)), [r[0] for r in rows]); ax.invert_yaxis(); ax.set_ylim(len(rows) - 0.4, -0.9)
     ax.set_xlabel('p50 latency, log scale (200 req/s, all on one product row)', color=t['ink2'])
     ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:,.0f}' if x >= 1 else f'{x:g}'))
-    legend(ax, t, ax.get_legend_handles_labels(), loc='upper right')
+    lg = ax.legend(*ax.get_legend_handles_labels(), loc='lower left', bbox_to_anchor=(0, 1.0), ncols=2, frameon=False, fontsize=9)
+    for x in lg.get_texts(): x.set_color(t['ink2'])
     title(fig, t, 'Lab 07 · Price change + audit on a hot row', 'Moving the audit out of the transaction shortens the row-lock hold time.')
     save(fig, 'lab07-events', mode, top=0.74)
 
@@ -314,18 +319,18 @@ def lab08(t, mode):
         fig, ax = figure(t, w=8.0, h=3.3)
         grouped_v(ax, t, [c for c, _ in cats], list(new), vals, lambda x: f'{x:.0f}', 'successful req/s')
         ax.hlines([100, 300, 100, 300], [-0.45, 0.55, 1.55, 2.55], [0.45, 1.45, 2.45, 3.45], color=t['ink2'], linewidth=1, linestyles=(0, (4, 3)))
-        ax.axhline(166, color=t['critical'], linewidth=1); ax.text(3.45, 172, 'pool-5 capacity 5 / 30 ms ≈ 166/s', color=t['ink2'], fontsize=8, ha='right')
+        ax.axhline(166, color=t['ink2'], linewidth=1, linestyle=(0, (1, 2))); ax.text(-0.45, 172, 'pool-5 capacity: 5 / 30 ms ≈ 166/s', color=t['ink2'], fontsize=8, ha='left')
         legend(ax, t, ax.get_legend_handles_labels(), loc='upper left')
         title(fig, t, 'Lab 08 · Real connection pool: each request holds a connection for 30 ms', 'Dashed = offered load. Above capacity, requests wait and then fail (1 s pool timeout, WildFly 30 s).')
         save(fig, 'lab08-dbpool', mode, top=0.76)
 
 def repeatability(t, mode):
     v = phases(V2)
-    items = [('Spring · platform · io-blocking-400rps', 'v2-rep5-spring-j25-platform', 'io-blocking-400rps', 'rps'),
-             ('Spring · virtual · io-blocking-400rps', 'v2-rep5-spring-j25-virtual', 'io-blocking-400rps', 'rps'),
-             ('Spring · Java 17 · io-blocking-400rps', 'v2-rep5-spring-j17-platform', 'io-blocking-400rps', 'rps'),
-             ('Spring · events-direct', 'v2-rep5-spring-j25-platform', 'events-direct', 'rps'),
-             ('Spring · events-event', 'v2-rep5-spring-j25-platform', 'events-event', 'rps')]
+    items = [('Spring · Java 25 platform · 400 req/s blocking', 'v4-rep5-spring-j25-platform', 'io-blocking-400rps', 'rps'),
+             ('Spring · Java 25 virtual · 400 req/s blocking', 'v4-rep5-spring-j25-virtual', 'io-blocking-400rps', 'rps'),
+             ('Spring · Java 17 platform · 400 req/s blocking', 'v4-rep5-spring-j17-platform', 'io-blocking-400rps', 'rps'),
+             ('Spring · events direct · 200 req/s hot row', 'v2-rep5-spring-j25-platform', 'events-direct', 'rps'),
+             ('Spring · events after-commit · 200 req/s hot row', 'v2-rep5-spring-j25-platform', 'events-event', 'rps')]
     items = [(l, k6(v[p], e), m) for l, p, e, m in items if p in v and k6(v[p], e)]
     if not items: return
     fig, ax = figure(t, h=0.55 * len(items) + 1.3)
