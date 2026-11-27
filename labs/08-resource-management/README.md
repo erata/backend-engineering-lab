@@ -53,7 +53,7 @@ Pool acquisition timeouts: Hikari 1 s, MySqlConnector 1 s, WildFly default (30 s
 |---|---|---|---|
 | request threads while waiting for a connection | Tomcat thread blocked | Undertow worker blocked | none (async open) |
 | pool timeout | 1 s → HTTP 503 | 30 s (default) → queueing | 1 s → HTTP 503 |
-| concurrency available for a stampede | 32-thread executor | managed executor (8 concurrent tasks observed) | unbounded async tasks |
+| concurrency available for a stampede | 32-thread executor | default managed executor: no explicit size in `standalone.xml`; measured 8 concurrent tasks at 4 CPUs and 40 at 20 CPUs (≈ 2 × CPUs) | unbounded async tasks |
 | Redis shared cache | implemented | – | – |
 
 ## 5. Correctness tests
@@ -103,7 +103,7 @@ Source: [011057Z](../../reports/http-runs/20261127T011057Z/REPORT.md), phases `v
 ## 8. Interpretation and trade-offs
 
 **Observations → explanations**
-1. Single-flight reduced loads to 1 in every edition; without it the stampede size matched the **effective concurrency** (Spring pool 32, WildFly executor 8, .NET async 100), not the request count.
+1. Single-flight reduced loads to 1 in every edition; without it the stampede size matched the **effective concurrency** (Spring pool 32, WildFly default executor 8 at 4 CPUs — 40 in the clean-checkout run without a CPU limit, .NET async 100), not the request count.
 2. Across instances, local single-flight still loads once **per instance**; only the shared lock gives 1.
 3. All three pools delivered ≈ 160 successful req/s at pool 5, as Little's law predicts (166). They differ in *how* they fail: .NET fails fast (async waiters, 1 s timeout), WildFly queues for up to 30 s (no errors, multi-second latency), Spring fails after 1 s but also queues in Tomcat.
 4. Redis costs a network hop and CPU (p50 1.0 vs 0.54 ms) and returns stale data until invalidated.

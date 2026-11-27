@@ -6,7 +6,7 @@ Last full validation: **2026-11-27** on Windows 11 (Intel i7-13700H, 20 logical 
 
 | Check | How | Result |
 |---|---|---|
-| Maven reactor (cache-core, app, JMH, Jakarta WAR) | `mvn -B -f implementations/spring-boot/pom.xml clean verify` (JDK 25) | **pass**; clean-checkout run: see §3 |
+| Maven reactor (cache-core, app, JMH, Jakarta WAR) | `mvn -B -f implementations/spring-boot/pom.xml clean verify` (JDK 25) | **pass**, also from a fresh clone (§3) |
 | cache-core unit tests | surefire | **12 / 12** |
 | Spring MySQL integration test (Testcontainers: journal, NULL timestamps, late commit, rollback) | failsafe `CatalogIT` | **1 / 1** |
 | .NET 10 build + xUnit | `dotnet test Lab.Tests` (`LabTargetFrameworks=net10.0`) | **4 / 4** |
@@ -37,6 +37,7 @@ Last full validation: **2026-11-27** on Windows 11 (Intel i7-13700H, 20 logical 
 | F10 | Jakarta build | Docker build failed: `ActivateRequestContext` not found | missing import of `jakarta.enterprise.context.control.ActivateRequestContext`; the local check had passed because Maven's incremental build did not recompile the class | import fixed; verification now uses `clean package` |
 | F11 | Harness: suite | 11 minutes per experiment | `localhost` resolved to `::1` first on Windows, ~2 s per refused attempt | probes use `127.0.0.1` |
 | F12 | Harness: suite | contaminated rows after saturation runs; WildFly measured during JIT warm-up | overloaded servers keep draining their queue; 10 s warm-up too short at 2,000 req/s | saturation runs last, drain check before each run, 30 s warm-up at ≥ 1,000 req/s |
+| F14 | Jakarta routing | `/lab/resources/stampede` and `/pool` returned 404 (since the DB-pool lab was added) | a resource class annotated `@Path("lab/resources")` takes precedence for every URI under that prefix | DB-pool endpoint moved into `Endpoints`; found by the clean-checkout contract test, re-verified from a new clone |
 | F13 | Harness: host | run aborted with a negative subprocess timeout | laptop entered Modern Standby for 4 h | keep-awake request (`SetThreadExecutionState`) for the duration of a suite run |
 
 ## 3. Clean-checkout reproduction

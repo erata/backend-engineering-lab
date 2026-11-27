@@ -143,7 +143,7 @@ Stampede, 100 requests: in-process 32 / 8 / 100 loads without coordination, 1 wi
 
 ## 4. Defects found by benchmarking
 
-Benchmarks and probes found defects that unit tests had missed. All are fixed and listed in [VALIDATION_STATUS.md](../docs/VALIDATION_STATUS.md): the Hikari deadlock (F4), CDI proxy defects (F2, F3), the bounded WildFly virtual executor (F9), and harness defects that would otherwise have been reported as backend results (F6 Nagle, F8 threaded mock, suite spill-over, IPv6 `localhost` delays, host standby).
+Benchmarks and probes found defects that unit tests had missed. All are fixed and listed in [VALIDATION_STATUS.md](../docs/VALIDATION_STATUS.md): the Hikari deadlock (F4), CDI proxy defects (F2, F3), the bounded WildFly virtual executor (F9), a JAX-RS routing defect found by the clean-checkout test (F14), and harness defects that would otherwise have been reported as backend results (F6 Nagle, F8 threaded mock, suite spill-over, IPv6 `localhost` delays, host standby).
 
 ## 5. Limitations
 

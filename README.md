@@ -4,7 +4,7 @@
 
 An independently runnable, cross-framework engineering laboratory. Three implementations of one small product-catalogue scenario explore the same engineering questions without requiring a distributed product architecture. The focus is learning, correctness, repeatability and trade-offs, not declaring a universal framework winner.
 
-> **Release status (2026-11-27): built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Thirteen defects found during validation were fixed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
+> **Release status (2026-11-27): built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Fourteen defects found during validation were fixed, and a clean-checkout reproduction passed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
 >
 > **Results:** [Consolidated benchmark report](reports/BENCHMARK_REPORT.md) · [Benchmark guide](docs/BENCHMARKS.md)
 

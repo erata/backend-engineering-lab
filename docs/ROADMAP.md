@@ -69,7 +69,23 @@ Status as of 2026-11-27. Legend:
 
 ## 3. Clean-checkout reproduction
 
-<!-- CLEAN-CHECKOUT -->
+Performed on 2026-11-27 from a fresh `git clone` of the committed state into an empty directory (Compose project `clean-lab`, new volumes, so every database was seeded from scratch; host ports 28080–28083 to avoid clashes):
+
+| Step | Command (from the clone) | Result |
+|---|---|---|
+| Java build + unit + integration tests | `mvn -B -f implementations/spring-boot/pom.xml clean verify` (JDK 25) | **BUILD SUCCESS**: 12/12 unit, `CatalogIT` 1/1, all 5 modules |
+| .NET tests and benchmark build | `dotnet test Lab.Tests -c Release`, `dotnet build Lab.Benchmarks` (`LabTargetFrameworks=net10.0`) | 4/4, 0 errors |
+| Dependency-free checks, report-tool tests | `check_offline.py`, `check_extended.py`, `python -m unittest test_report_generator` | pass |
+| JMH smoke + report generation | `python tools/run_benchmark.py --smoke --count 10000 --suite cache` | report written |
+| Suite definition | `python tools/run_http_suite.py --list` | 42 phases listed |
+| Compose: Spring (default) | `docker compose up -d --build mysql mock-api app`; `compare_http.py`; `smoke_api.py` | both **pass** |
+| Compose: Jakarta (`--profile jakarta`) | `compare_http.py` | **failed (404)** → defect **F14** found and fixed; repeated from a new clone: **pass** |
+| Compose: .NET (`--profile dotnet`) | `compare_http.py` | **pass** |
+| Compose: Redis overlay | `-f docker-compose.redis.yml up … redis app app2`; load via instance A, read via instance B | B served from Redis, 1 load |
+| Chart regeneration | `python tools/make_charts.py` | content identical; output made deterministic (hash salt, no date) and verified byte-identical across two generations |
+| Reset | `docker compose … down -v` | volumes removed; the next start re-seeds 100,000 products |
+
+Not reproducible from the clone without extra downloads: the OpenTelemetry Java agent (`observability/agent.jar`, git-ignored, see [OBSERVABILITY.md](OBSERVABILITY.md)).
 
 ## 4. Release assessment
 
