@@ -1,0 +1,63 @@
+# Dependabot: weekly security and version updates for every dependency source in the repository.
+#
+# Benchmark results in reports/ were measured with the exact versions pinned in the build files. Major upgrades of
+# runtime libraries and base images are therefore ignored here: they would change the measured system and need a
+# new benchmark run. Security updates (Dependabot alerts) are still raised for all versions.
+version: 2
+updates:
+  # Maven reactor: cache-core, Spring Boot app, JMH benchmarks and the Jakarta EE WAR (module ../jakarta-ee).
+  - package-ecosystem: maven
+    directory: /implementations/spring-boot
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      maven-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # .NET: API, tests and BenchmarkDotNet project.
+  - package-ecosystem: nuget
+    directories:
+      - /implementations/aspnet-core/Lab.Api
+      - /implementations/aspnet-core/Lab.Tests
+      - /implementations/aspnet-core/Lab.Benchmarks
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      nuget-minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Base images of the three editions' Dockerfiles.
+  - package-ecosystem: docker
+    directories:
+      - /
+      - /implementations/jakarta-ee
+      - /implementations/aspnet-core
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # Images referenced in docker-compose*.yml (MySQL, Redis, Python mock, monitoring stack).
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions used by .github/workflows/ci.yml (majors allowed: they do not affect measured results).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: weekly }
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]
