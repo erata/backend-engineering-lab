@@ -1,0 +1,38 @@
+{
+  "utc": "2026-11-27T20:12:04.903331+00:00",
+  "os": "Windows-11-10.0.26300-SP0",
+  "processor": "v6 Redis outage repetitions and client settings",
+  "logical_cpu_count": 20,
+  "docker": "29.5.3",
+  "k6_image": "grafana/k6:1.3.0",
+  "phases": [
+    "v6-outage-spring-queue",
+    "v6-outage-spring-reject",
+    "v6-outage-jakarta",
+    "v6-outage-jakarta-dns0",
+    "v6-outage-dotnet-hb1000",
+    "v6-outage-dotnet-hb500",
+    "v6-outage-dotnet-hb100"
+  ],
+  "status": "completed",
+  "git_commit": "c090a7465d03bc7d805c56d307c7c870a29807bc",
+  "git_dirty_files": 5,
+  "workload": {
+    "products": 100000,
+    "warmup": "10 s (30 s for >= 1000 req/s), one per experiment",
+    "measure": "per experiment, usually 30 s",
+    "executor": "k6 constant-arrival-rate",
+    "backend_limits": "cpus per phase (default 4), mem_limit 2g",
+    "upstream_mock": "100/200/300 ms",
+    "repetitions": {
+      "v6-outage-spring-queue": 1,
+      "v6-outage-spring-reject": 1,
+      "v6-outage-jakarta": 1,
+      "v6-outage-jakarta-dns0": 1,
+      "v6-outage-dotnet-hb1000": 1,
+      "v6-outage-dotnet-hb500": 1,
+      "v6-outage-dotnet-hb100": 1
+    }
+  },
+  "finished_utc": "2026-11-27T20:36:21.271403+00:00"
+}

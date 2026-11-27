@@ -1,0 +1,1302 @@
+[
+ {
+  "id": "v6-outage-spring-queue",
+  "title": "Lettuce, default (queue while disconnected)",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.5.1",
+   "thread": "http-nio-0.0.0.0-8080-exec-3",
+   "image": "backend-engineering-lab-full-app sha256:502bee3469a5cb91143ac9ea2f8e61b57479a94c1e2ea831b4c558c915b34f8a",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "outage": {
+   "client": {
+    "loads": 1,
+    "client": "Lettuce",
+    "id": 42,
+    "fallbacks": 0,
+    "disconnected": "default"
+   },
+   "stop": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 512.2,
+     "p95_ms": 535.0,
+     "p99_ms": 540.3,
+     "min_ms": 507.6,
+     "max_ms": 540.3
+    },
+    "first_request_ms": [
+     515.0,
+     512.9,
+     509.6,
+     534.7,
+     507.6
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 543.6,
+     "p95_ms": 647.0,
+     "p99_ms": 652.8,
+     "min_ms": 521.6,
+     "max_ms": 659.0
+    },
+    "recovery_ms": {
+     "values": [
+      471,
+      563,
+      1079,
+      514,
+      901
+     ],
+     "median": 563,
+     "min": 471,
+     "max": 1079,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 302,
+    "exceptions": [
+     "QueryTimeoutException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "pause": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 512.4,
+     "p95_ms": 536.9,
+     "p99_ms": 562.3,
+     "min_ms": 508.0,
+     "max_ms": 562.3
+    },
+    "first_request_ms": [
+     516.6,
+     511.4,
+     512.0,
+     523.4,
+     517.9
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 549.6,
+     "p95_ms": 624.5,
+     "p99_ms": 639.7,
+     "min_ms": 516.5,
+     "max_ms": 645.5
+    },
+    "recovery_ms": {
+     "values": [
+      8,
+      10,
+      20,
+      11,
+      28
+     ],
+     "median": 11,
+     "min": 8,
+     "max": 28,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "QueryTimeoutException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "kill": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 551.2,
+     "p95_ms": 587.8,
+     "p99_ms": 648.4,
+     "min_ms": 507.5,
+     "max_ms": 648.4
+    },
+    "first_request_ms": [
+     526.9,
+     507.5,
+     543.7,
+     542.0,
+     601.6
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 610.3,
+     "p95_ms": 843.7,
+     "p99_ms": 897.8,
+     "min_ms": 532.6,
+     "max_ms": 904.9
+    },
+    "recovery_ms": {
+     "values": [
+      3083,
+      7862,
+      7194,
+      953,
+      1005
+     ],
+     "median": 3083,
+     "min": 953,
+     "max": 7862,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 329,
+    "exceptions": [
+     "QueryTimeoutException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   }
+  }
+ },
+ {
+  "id": "v6-outage-spring-reject",
+  "title": "Lettuce, REJECT_COMMANDS",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot",
+   "LAB_REDIS_DISCONNECTED": "reject"
+  },
+  "info": {
+   "thread": "http-nio-0.0.0.0-8080-exec-3",
+   "runtime": "25.0.5.1",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-app sha256:502bee3469a5cb91143ac9ea2f8e61b57479a94c1e2ea831b4c558c915b34f8a",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "outage": {
+   "client": {
+    "client": "Lettuce",
+    "loads": 1,
+    "disconnected": "reject",
+    "fallbacks": 0,
+    "id": 42
+   },
+   "stop": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 25.4,
+     "p95_ms": 268.7,
+     "p99_ms": 706.7,
+     "min_ms": 10.7,
+     "max_ms": 706.7
+    },
+    "first_request_ms": [
+     24.7,
+     39.3,
+     268.7,
+     16.4,
+     17.8
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 143.4,
+     "p95_ms": 728.4,
+     "p99_ms": 739.2,
+     "min_ms": 32.0,
+     "max_ms": 747.5
+    },
+    "recovery_ms": {
+     "values": [
+      232,
+      243,
+      578,
+      520,
+      195
+     ],
+     "median": 243,
+     "min": 195,
+     "max": 578,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 314,
+    "exceptions": [
+     "RedisSystemException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "pause": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 519.6,
+     "p95_ms": 545.2,
+     "p99_ms": 556.6,
+     "min_ms": 510.9,
+     "max_ms": 556.6
+    },
+    "first_request_ms": [
+     523.0,
+     523.9,
+     520.7,
+     520.0,
+     555.9
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 557.6,
+     "p95_ms": 585.8,
+     "p99_ms": 592.9,
+     "min_ms": 516.5,
+     "max_ms": 597.3
+    },
+    "recovery_ms": {
+     "values": [
+      18,
+      11,
+      50,
+      53,
+      12
+     ],
+     "median": 18,
+     "min": 11,
+     "max": 53,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "QueryTimeoutException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "kill": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 10.2,
+     "p95_ms": 21.4,
+     "p99_ms": 26.9,
+     "min_ms": 7.1,
+     "max_ms": 26.9
+    },
+    "first_request_ms": [
+     8.3,
+     9.6,
+     14.0,
+     7.5,
+     21.3
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 53.1,
+     "p95_ms": 106.5,
+     "p99_ms": 117.7,
+     "min_ms": 25.2,
+     "max_ms": 123.7
+    },
+    "recovery_ms": {
+     "values": [
+      242,
+      174,
+      267,
+      186,
+      277
+     ],
+     "median": 242,
+     "min": 174,
+     "max": 277,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 308,
+    "exceptions": [
+     "RedisSystemException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   }
+  }
+ },
+ {
+  "id": "v6-outage-jakarta",
+  "title": "Jedis, default JVM DNS cache",
+  "cpus": 4,
+  "env": {},
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.4.1",
+   "thread": "default task-3",
+   "image": "backend-engineering-lab-full-jakarta sha256:d6b5dfd9952188f5202fa76cb7df585fbe421e4e9a5808424f432e81f988949c",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "outage": {
+   "client": {
+    "poolMax": 8,
+    "client": "Jedis",
+    "id": 42,
+    "fallbacks": 0,
+    "loads": 1
+   },
+   "stop": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 512.6,
+     "p95_ms": 539.9,
+     "p99_ms": 2862.2,
+     "min_ms": 8.1,
+     "max_ms": 2862.2
+    },
+    "first_request_ms": [
+     515.2,
+     528.5,
+     516.5,
+     2862.2,
+     513.8
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 537.7,
+     "p95_ms": 1022.6,
+     "p99_ms": 1038.5,
+     "min_ms": 18.1,
+     "max_ms": 1048.5
+    },
+    "recovery_ms": {
+     "values": [
+      193,
+      114,
+      113,
+      9578,
+      115
+     ],
+     "median": 115,
+     "min": 113,
+     "max": 9578,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 450,
+    "exceptions": [
+     "JedisConnectionException",
+     "JedisException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "pause": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 510.0,
+     "p95_ms": 1012.2,
+     "p99_ms": 1014.1,
+     "min_ms": 507.7,
+     "max_ms": 1014.1
+    },
+    "first_request_ms": [
+     1010.9,
+     1011.4,
+     1012.5,
+     1012.2,
+     1014.1
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 535.9,
+     "p95_ms": 1021.2,
+     "p99_ms": 1041.4,
+     "min_ms": 515.4,
+     "max_ms": 1053.4
+    },
+    "recovery_ms": {
+     "values": [
+      19,
+      16,
+      8,
+      8,
+      25
+     ],
+     "median": 16,
+     "min": 8,
+     "max": 25,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "JedisConnectionException",
+     "JedisException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "kill": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 7.6,
+     "p95_ms": 26.5,
+     "p99_ms": 31.0,
+     "min_ms": 4.8,
+     "max_ms": 31.0
+    },
+    "first_request_ms": [
+     7.0,
+     31.0,
+     11.5,
+     8.0,
+     7.8
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 47.8,
+     "p95_ms": 86.0,
+     "p99_ms": 134.7,
+     "min_ms": 13.5,
+     "max_ms": 136.5
+    },
+    "recovery_ms": {
+     "values": [
+      112,
+      112,
+      124,
+      128,
+      111
+     ],
+     "median": 112,
+     "min": 111,
+     "max": 128,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "JedisConnectionException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   }
+  }
+ },
+ {
+  "id": "v6-outage-jakarta-dns0",
+  "title": "Jedis, negative DNS cache off",
+  "cpus": 4,
+  "env": {
+   "LAB_JAVA_TOOL_OPTIONS": "-Dsun.net.inetaddr.negative.ttl=0"
+  },
+  "info": {
+   "thread": "default task-2",
+   "runtime": "25.0.4.1",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-jakarta sha256:d6b5dfd9952188f5202fa76cb7df585fbe421e4e9a5808424f432e81f988949c",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "outage": {
+   "client": {
+    "poolMax": 8,
+    "loads": 1,
+    "fallbacks": 0,
+    "id": 42,
+    "client": "Jedis"
+   },
+   "stop": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 512.5,
+     "p95_ms": 531.5,
+     "p99_ms": 2745.1,
+     "min_ms": 8.1,
+     "max_ms": 2745.1
+    },
+    "first_request_ms": [
+     518.6,
+     520.8,
+     535.6,
+     2745.1,
+     514.2
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 540.8,
+     "p95_ms": 1027.1,
+     "p99_ms": 1035.4,
+     "min_ms": 34.8,
+     "max_ms": 1037.6
+    },
+    "recovery_ms": {
+     "values": [
+      114,
+      117,
+      115,
+      9538,
+      114
+     ],
+     "median": 115,
+     "min": 114,
+     "max": 9538,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 444,
+    "exceptions": [
+     "JedisConnectionException",
+     "JedisException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "pause": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 513.0,
+     "p95_ms": 1014.7,
+     "p99_ms": 1021.3,
+     "min_ms": 508.0,
+     "max_ms": 1021.3
+    },
+    "first_request_ms": [
+     1021.3,
+     1012.0,
+     1012.2,
+     1014.7,
+     1017.3
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 534.3,
+     "p95_ms": 577.4,
+     "p99_ms": 1023.2,
+     "min_ms": 511.3,
+     "max_ms": 1024.5
+    },
+    "recovery_ms": {
+     "values": [
+      8,
+      26,
+      21,
+      8,
+      10
+     ],
+     "median": 10,
+     "min": 8,
+     "max": 26,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "JedisConnectionException",
+     "JedisException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   },
+   "kill": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 12.2,
+     "p95_ms": 26.0,
+     "p99_ms": 34.9,
+     "min_ms": 5.4,
+     "max_ms": 34.9
+    },
+    "first_request_ms": [
+     8.1,
+     12.6,
+     10.7,
+     14.1,
+     7.0
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 59.3,
+     "p95_ms": 126.2,
+     "p99_ms": 164.6,
+     "min_ms": 23.9,
+     "max_ms": 176.8
+    },
+    "recovery_ms": {
+     "values": [
+      118,
+      116,
+      119,
+      121,
+      111
+     ],
+     "median": 118,
+     "min": 111,
+     "max": 121,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "JedisConnectionException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ]
+   }
+  }
+ },
+ {
+  "id": "v6-outage-dotnet-hb1000",
+  "title": "StackExchange.Redis, heartbeat 1000 ms",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "10.0",
+   "REDIS_HEARTBEAT_MS": "1000"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 4,
+   "threadPool": 5,
+   "image": "backend-engineering-lab-full-dotnet sha256:ffc2ad705922360b8dcb2b0eff6ffd12446b62dded5cbd71d43d68a441c940fc",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "outage": {
+   "client": {
+    "id": 42,
+    "loads": 1,
+    "fallbacks": 0,
+    "client": "StackExchange.Redis",
+    "heartbeatMs": 1000
+   },
+   "stop": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 999.5,
+     "p95_ms": 1004.6,
+     "p99_ms": 1401.9,
+     "min_ms": 548.5,
+     "max_ms": 1401.9
+    },
+    "first_request_ms": [
+     844.6,
+     644.2,
+     673.6,
+     1401.9,
+     548.5
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 982.5,
+     "p95_ms": 1089.8,
+     "p99_ms": 1093.8,
+     "min_ms": 941.2,
+     "max_ms": 1097.3
+    },
+    "recovery_ms": {
+     "values": [
+      1711,
+      1773,
+      760,
+      837,
+      1747
+     ],
+     "median": 1711,
+     "min": 760,
+     "max": 1773,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 308,
+    "exceptions": [
+     "RedisConnectionException"
+    ],
+    "connected_clients_after": [
+     3,
+     3,
+     3,
+     3,
+     3
+    ]
+   },
+   "pause": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 999.8,
+     "p95_ms": 1003.8,
+     "p99_ms": 1005.7,
+     "min_ms": 823.5,
+     "max_ms": 1005.7
+    },
+    "first_request_ms": [
+     933.9,
+     962.7,
+     900.7,
+     848.0,
+     823.5
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 976.9,
+     "p95_ms": 993.8,
+     "p99_ms": 998.0,
+     "min_ms": 948.2,
+     "max_ms": 999.5
+    },
+    "recovery_ms": {
+     "values": [
+      16,
+      7,
+      18,
+      853,
+      6
+     ],
+     "median": 16,
+     "min": 6,
+     "max": 853,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 301,
+    "exceptions": [
+     "RedisTimeoutException"
+    ],
+    "connected_clients_after": [
+     3,
+     3,
+     3,
+     3,
+     3
+    ]
+   },
+   "kill": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 999.1,
+     "p95_ms": 1005.8,
+     "p99_ms": 1010.1,
+     "min_ms": 698.0,
+     "max_ms": 1010.1
+    },
+    "first_request_ms": [
+     912.2,
+     804.0,
+     897.2,
+     851.4,
+     698.0
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 981.9,
+     "p95_ms": 1547.5,
+     "p99_ms": 1554.8,
+     "min_ms": 533.9,
+     "max_ms": 1557.5
+    },
+    "recovery_ms": {
+     "values": [
+      996,
+      960,
+      1016,
+      905,
+      995
+     ],
+     "median": 995,
+     "min": 905,
+     "max": 1016,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 305,
+    "exceptions": [
+     "RedisConnectionException"
+    ],
+    "connected_clients_after": [
+     3,
+     3,
+     3,
+     3,
+     3
+    ]
+   }
+  }
+ },
+ {
+  "id": "v6-outage-dotnet-hb500",
+  "title": "StackExchange.Redis, heartbeat 500 ms",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "10.0",
+   "REDIS_HEARTBEAT_MS": "500"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 4,
+   "threadPool": 5,
+   "image": "backend-engineering-lab-full-dotnet sha256:ffc2ad705922360b8dcb2b0eff6ffd12446b62dded5cbd71d43d68a441c940fc",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "outage": {
+   "client": {
+    "id": 42,
+    "loads": 1,
+    "fallbacks": 0,
+    "client": "StackExchange.Redis",
+    "heartbeatMs": 500
+   },
+   "stop": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 999.7,
+     "p95_ms": 1005.3,
+     "p99_ms": 1509.4,
+     "min_ms": 646.0,
+     "max_ms": 1509.4
+    },
+    "first_request_ms": [
+     646.0,
+     714.3,
+     687.9,
+     712.5,
+     676.0
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 987.8,
+     "p95_ms": 1054.9,
+     "p99_ms": 1070.7,
+     "min_ms": 953.8,
+     "max_ms": 1076.2
+    },
+    "recovery_ms": {
+     "values": [
+      758,
+      823,
+      197,
+      1308,
+      791
+     ],
+     "median": 791,
+     "min": 197,
+     "max": 1308,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 304,
+    "exceptions": [
+     "RedisConnectionException"
+    ],
+    "connected_clients_after": [
+     2,
+     2,
+     3,
+     3,
+     2
+    ]
+   },
+   "pause": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 999.3,
+     "p95_ms": 1002.7,
+     "p99_ms": 1003.4,
+     "min_ms": 499.9,
+     "max_ms": 1003.4
+    },
+    "first_request_ms": [
+     882.6,
+     536.7,
+     970.3,
+     525.9,
+     642.1
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 984.6,
+     "p95_ms": 1000.8,
+     "p99_ms": 1007.1,
+     "min_ms": 963.0,
+     "max_ms": 1008.1
+    },
+    "recovery_ms": {
+     "values": [
+      332,
+      6,
+      373,
+      367,
+      373
+     ],
+     "median": 367,
+     "min": 6,
+     "max": 373,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "RedisConnectionException",
+     "RedisTimeoutException"
+    ],
+    "connected_clients_after": [
+     3,
+     3,
+     3,
+     3,
+     3
+    ]
+   },
+   "kill": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 999.6,
+     "p95_ms": 1003.1,
+     "p99_ms": 1004.8,
+     "min_ms": 504.8,
+     "max_ms": 1004.8
+    },
+    "first_request_ms": [
+     559.6,
+     948.7,
+     905.1,
+     984.3,
+     901.4
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 989.8,
+     "p95_ms": 1056.4,
+     "p99_ms": 1062.3,
+     "min_ms": 958.0,
+     "max_ms": 1064.5
+    },
+    "recovery_ms": {
+     "values": [
+      436,
+      420,
+      1357,
+      1010,
+      446
+     ],
+     "median": 446,
+     "min": 420,
+     "max": 1357,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 302,
+    "exceptions": [
+     "RedisConnectionException"
+    ],
+    "connected_clients_after": [
+     3,
+     3,
+     3,
+     3,
+     2
+    ]
+   }
+  }
+ },
+ {
+  "id": "v6-outage-dotnet-hb100",
+  "title": "StackExchange.Redis, heartbeat 100 ms",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "10.0",
+   "REDIS_HEARTBEAT_MS": "100"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 4,
+   "threadPool": 5,
+   "image": "backend-engineering-lab-full-dotnet sha256:ffc2ad705922360b8dcb2b0eff6ffd12446b62dded5cbd71d43d68a441c940fc",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "outage": {
+   "client": {
+    "id": 42,
+    "loads": 1,
+    "fallbacks": 0,
+    "client": "StackExchange.Redis",
+    "heartbeatMs": 100
+   },
+   "stop": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 599.7,
+     "p95_ms": 634.6,
+     "p99_ms": 1311.7,
+     "min_ms": 523.8,
+     "max_ms": 1311.7
+    },
+    "first_request_ms": [
+     608.3,
+     583.2,
+     523.8,
+     599.2,
+     563.9
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 662.5,
+     "p95_ms": 1158.3,
+     "p99_ms": 1170.7,
+     "min_ms": 548.9,
+     "max_ms": 1172.5
+    },
+    "recovery_ms": {
+     "values": [
+      301,
+      186,
+      377,
+      398,
+      315
+     ],
+     "median": 315,
+     "min": 186,
+     "max": 398,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "RedisConnectionException"
+    ],
+    "connected_clients_after": [
+     3,
+     3,
+     3,
+     3,
+     2
+    ]
+   },
+   "pause": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 600.3,
+     "p95_ms": 603.7,
+     "p99_ms": 614.7,
+     "min_ms": 496.3,
+     "max_ms": 614.7
+    },
+    "first_request_ms": [
+     558.5,
+     537.2,
+     585.9,
+     612.3,
+     603.1
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 584.1,
+     "p95_ms": 597.4,
+     "p99_ms": 603.2,
+     "min_ms": 559.1,
+     "max_ms": 605.2
+    },
+    "recovery_ms": {
+     "values": [
+      4,
+      6,
+      4,
+      17,
+      7
+     ],
+     "median": 6,
+     "min": 4,
+     "max": 17,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "RedisConnectionException",
+     "RedisTimeoutException"
+    ],
+    "connected_clients_after": [
+     3,
+     3,
+     3,
+     3,
+     3
+    ]
+   },
+   "kill": {
+    "repetitions": 5,
+    "requests_per_rep": 60,
+    "sequential": {
+     "n": 50,
+     "median_ms": 599.6,
+     "p95_ms": 605.7,
+     "p99_ms": 607.8,
+     "min_ms": 506.8,
+     "max_ms": 607.8
+    },
+    "first_request_ms": [
+     578.0,
+     512.3,
+     536.0,
+     506.8,
+     594.3
+    ],
+    "concurrent_50": {
+     "n": 250,
+     "median_ms": 601.0,
+     "p95_ms": 665.0,
+     "p99_ms": 669.9,
+     "min_ms": 542.0,
+     "max_ms": 671.3
+    },
+    "recovery_ms": {
+     "values": [
+      226,
+      523,
+      533,
+      198,
+      185
+     ],
+     "median": 226,
+     "min": 185,
+     "max": 533,
+     "not_recovered": 0
+    },
+    "http_error_rate": 0.0,
+    "db_fallback_responses": 300,
+    "db_fallback_queries_incl_polls": 300,
+    "exceptions": [
+     "RedisConnectionException"
+    ],
+    "connected_clients_after": [
+     2,
+     3,
+     3,
+     2,
+     3
+    ]
+   }
+  }
+ }
+]
