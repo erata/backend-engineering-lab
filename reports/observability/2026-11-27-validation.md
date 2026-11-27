@@ -35,3 +35,18 @@ Load: 200 (Spring) / 100 (Jakarta, .NET) catalogue reads plus 10 / 5 `GET /lab/i
 - The .NET client count (17) is slightly above 5 × 3 = 15; the extra calls were not attributed.
 - No log pipeline (Loki) is configured.
 - Benchmarks in the report were run **without** instrumentation; the overhead of the agent was not measured.
+
+## Re-validation after the Dependabot image updates (2026-11-27, after v1.1.0)
+
+Dependabot PRs #5–#8 updated the monitoring images: OTel Collector contrib 0.133.0 → **0.165.0**, Prometheus v3.5.0 → **v3.16.0**, Tempo 2.8.2 → **2.10.10**, Grafana 12.1.1 → **12.4.16**. CI does not start the monitoring stack, so the same check as above was repeated locally before merging. The configuration files in `observability/` were not changed.
+
+| Check | Result |
+|---|---|
+| All four containers start; no errors in Collector, Tempo or Prometheus logs | yes. Grafana logs two errors about the absent `provisioning/plugins` and `provisioning/alerting` directories (nothing is provisioned there; not functional) |
+| OTel `http_server_request_duration_seconds_count` per service after 20 catalogue + 3 I/O requests each | spring 148 (includes actuator scrapes), jakarta 24, dotnet 24 |
+| OTel `http_client_request_duration_seconds_count` (upstream calls) | 39 in total |
+| Spring actuator scrape target | `up` = 1 |
+| Tempo traces per service | spring: 20 × `GET /api/products/{id}`, 3 × `GET /lab/io/{mode}`; jakarta and dotnet: `GET /api/products/{id}` and `GET /lab/io/{mode}` roots present |
+| Grafana | 12.4.16 healthy; dashboard "Backend Lab — Spring baseline" provisioned; Prometheus and Tempo data sources pass their health checks |
+
+Environment note: during this check the Windows port forward of Rancher Desktop stopped forwarding host port 18080 to the Spring container (the container answered on the Compose network, and ports 18081/18082 kept working). Traffic was therefore sent from a container on the Compose network. This is a local Docker Desktop issue, unrelated to the image updates.
