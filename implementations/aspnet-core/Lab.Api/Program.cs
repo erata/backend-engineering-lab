@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using MySqlConnector;
+using StackExchange.Redis;
 using Microsoft.Extensions.Caching.Memory;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -11,7 +12,7 @@ builder.Services.AddSingleton<Catalog>();builder.Services.AddSingleton<PriceServ
 // (ValidateScopes=true) this throws "Cannot resolve scoped service from root provider", in Production it silently
 // creates one RequestContext that lives forever (captive dependency).
 builder.Services.AddScoped<RequestContext>();builder.Services.AddSingleton<CaptiveHolder>(sp=>new CaptiveHolder(sp.GetRequiredService<RequestContext>()));
-builder.Services.AddSingleton<SingletonUserHolder>();builder.Services.AddScoped<RequestUserHolder>();builder.Services.AddTransient<OwnedResource>();
+builder.Services.AddSingleton<RedisLab>();builder.Services.AddSingleton<SingletonUserHolder>();builder.Services.AddScoped<RequestUserHolder>();builder.Services.AddTransient<OwnedResource>();
 if(!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))builder.Services.AddOpenTelemetry().ConfigureResource(r=>r.AddService("backendlab-dotnet")).WithTracing(t=>t.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddOtlpExporter()).WithMetrics(m=>m.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddOtlpExporter());
 var app=builder.Build();var catalog=app.Services.GetRequiredService<Catalog>();await catalog.Initialize();if(Environment.GetEnvironmentVariable("LAB_ENABLED")=="true")await PriceService.EnsureSchema();
 app.MapGet("/api/products",(int? page,int? size,string? search)=>{int p=page??1,s=size??10;if(p<1||s<1||s>100)return Results.BadRequest();var all=catalog.Read().Where(x=>x.Name.Contains(search??"",StringComparison.OrdinalIgnoreCase)).OrderBy(x=>x.Id).ToArray();return Results.Ok(new{page=p,size=s,total=all.Length,items=all.Skip((int)Math.Min((long)(p-1)*s,all.Length)).Take(s)});});
@@ -49,6 +50,10 @@ app.MapGet("/lab/resources/db",async(int? pool,int? ms)=>{int p=pool??5,d=ms??30
  var sw=System.Diagnostics.Stopwatch.StartNew();
  try{await using var c=new MySqlConnection(Pools.For(p));await c.OpenAsync();var waitMs=sw.Elapsed.TotalMilliseconds;await using var cmd=c.CreateCommand();cmd.CommandText="SELECT SLEEP(@s)";cmd.Parameters.AddWithValue("@s",d/1000.0);await cmd.ExecuteScalarAsync();return Results.Ok(new{pool=p,waitMs});}
  catch(MySqlException e){return Results.Json(new{pool=p,error=e.Message},statusCode:503);}});
+app.MapGet("/lab/redis/product/{id:long}",(long id,string? mode,RedisLab redis)=>redis.Product(id,mode??"distributed"));
+app.MapPost("/lab/redis/invalidate",async(long? id,RedisLab redis)=>Results.Ok(new{invalidated=await redis.Db.KeyDeleteAsync($"lab:product:{id??42}")}));
+app.MapPost("/lab/redis/reset",async(long? id,RedisLab redis)=>{long i=id??42;await redis.Db.KeyDeleteAsync(new RedisKey[]{$"lab:product:{i}",$"lab:loads:{i}",$"lab:lock:{i}"});return Results.Ok(new{reset=i});});
+app.MapGet("/lab/redis/loads",async(long? id,RedisLab redis)=>{long i=id??42;var v=await redis.Db.StringGetAsync($"lab:loads:{i}");return Results.Ok(new{id=i,loads=v.IsNull?0:(long)v,fallbacks=Interlocked.Read(ref RedisLab.Fallbacks),client="StackExchange.Redis"});});
 }app.Run();
 static bool Valid(NameRequest? req)=>req?.Name is {Length: >0 and <=255} n&&!string.IsNullOrWhiteSpace(n);
 public sealed record NameRequest(string Name);
@@ -64,6 +69,62 @@ public sealed class RequestUserHolder:IUserHolder{public string? User{get;set;}}
 public static class Pools{
  static readonly string Cs=Environment.GetEnvironmentVariable("DB_CONNECTION")??"Server=localhost;Database=backendlab;User ID=lab;Password=local-lab-password";
  public static string For(int size)=>$"{Cs};Minimum Pool Size={size};Maximum Pool Size={size};Connection Timeout=1;Application Name=lab-pool-{size}";
+}
+
+// ---- Lab 08: Redis shared cache with StackExchange.Redis -----------------------------------------------------
+// Same contract as the Spring (Lettuce) and Jakarta (Jedis) ports: cache-aside on lab:product:{id}, MySQL + 100 ms on a
+// miss, 30 s TTL, lab:loads:{id} counts loads across instances; mode none | local (in-process single-flight) |
+// distributed (SET NX PX lock). One multiplexed connection is shared by all requests (the client's design); it is
+// created lazily, so editions without Redis never connect. Timeouts are 500 ms like the other ports (client default
+// is 5 s); AbortOnConnectFail=false keeps reconnecting in the background instead of failing at startup.
+// Lab simplification as in Spring: the lock is released with GET + DEL and has no fencing token.
+public sealed class RedisLab{
+ public static long Fallbacks;
+ static readonly string Cs=Environment.GetEnvironmentVariable("DB_CONNECTION")??"Server=localhost;Database=backendlab;User ID=lab;Password=local-lab-password";
+ static readonly TimeSpan Ttl=TimeSpan.FromSeconds(30),Lease=TimeSpan.FromSeconds(3);
+ readonly Lazy<ConnectionMultiplexer> mux=new(()=>ConnectionMultiplexer.Connect(new ConfigurationOptions{
+  EndPoints={{Environment.GetEnvironmentVariable("REDIS_HOST")??"localhost",6379}},AbortOnConnectFail=false,ConnectTimeout=500,SyncTimeout=500,AsyncTimeout=500}));
+ readonly ConcurrentDictionary<string,Task<string>> inflight=new();
+ readonly string instance=Environment.MachineName;
+ public IDatabase Db=>mux.Value.GetDatabase();
+ public async Task<IResult> Product(long id,string mode){
+  if(mode is not ("none" or "local" or "distributed"))return Results.BadRequest(new{error="mode none|local|distributed"});
+  var sw=System.Diagnostics.Stopwatch.StartNew();string key=$"lab:product:{id}";
+  try{
+   string? value=await Db.StringGetAsync(key);string source="redis";
+   if(value is null){source="loaded-or-waited";value=mode switch{"none"=>await Load(id,key),"local"=>await Local(id,key),_=>await Distributed(id,key)};}
+   return Results.Ok(new{value,source,instance,ms=sw.Elapsed.TotalMilliseconds});
+  }catch(Exception e) when(e is RedisException or TimeoutException){
+   // Fail open, as in the other ports: serve from MySQL without caching.
+   Interlocked.Increment(ref Fallbacks);
+   return Results.Ok(new{value=Json(id,await Name(id)),source="db-fallback",instance,ms=sw.Elapsed.TotalMilliseconds,error=e.GetType().Name});
+  }
+ }
+ static string Json(long id,string name)=>System.Text.Json.JsonSerializer.Serialize(new{id,name});
+ static async Task<string> Name(long id){await using var c=new MySqlConnection(Cs);await c.OpenAsync();await using var cmd=c.CreateCommand();cmd.CommandText="SELECT name FROM products WHERE id=@id";cmd.Parameters.AddWithValue("@id",id);return (string)(await cmd.ExecuteScalarAsync())!;}
+ async Task<string> Load(long id,string key){
+  await Db.StringIncrementAsync($"lab:loads:{id}");var json=Json(id,await Name(id));await Task.Delay(100);
+  await Db.StringSetAsync(key,json,Ttl);return json;
+ }
+ async Task<string> Local(long id,string key){
+  var mine=new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+  var leader=inflight.GetOrAdd(key,mine.Task);if(leader!=mine.Task)return await leader;
+  try{string? v=await Db.StringGetAsync(key);v??=await Load(id,key);mine.SetResult(v);return v;}
+  catch(Exception e){mine.SetException(e);_=mine.Task.Exception;throw;}
+  finally{inflight.TryRemove(new KeyValuePair<string,Task<string>>(key,mine.Task));}
+ }
+ async Task<string> Distributed(long id,string key){
+  string lockKey=$"lab:lock:{id}";var deadline=DateTime.UtcNow+Lease;
+  while(DateTime.UtcNow<deadline){
+   string token=$"{instance}-{Guid.NewGuid()}";
+   if(await Db.StringSetAsync(lockKey,token,Lease,When.NotExists)){
+    try{string? v=await Db.StringGetAsync(key);return v??await Load(id,key);}
+    finally{if(await Db.StringGetAsync(lockKey)==token)await Db.KeyDeleteAsync(lockKey);}
+   }
+   await Task.Delay(10);string? w=await Db.StringGetAsync(key);if(w is not null)return w;
+  }
+  throw new InvalidOperationException("lock not acquired within lease");
+ }
 }
 
 // ---- Lab 07: price change with a transactional outbox ------------------------------------------------------------

@@ -19,6 +19,7 @@ public class RedisCacheController {
  private static final Duration TTL=Duration.ofSeconds(30),LEASE=Duration.ofSeconds(3);
  private final StringRedisTemplate redis;private final JdbcTemplate jdbc;private final String instance;
  private final ConcurrentHashMap<String,CompletableFuture<String>> inflight=new ConcurrentHashMap<>();
+ private static final java.util.concurrent.atomic.AtomicLong FALLBACKS=new java.util.concurrent.atomic.AtomicLong();
  public RedisCacheController(StringRedisTemplate redis,JdbcTemplate jdbc,@Value("${HOSTNAME:local}") String instance){this.redis=redis;this.jdbc=jdbc;this.instance=instance;}
 
  @GetMapping("/product/{id}") public Map<String,Object> product(@PathVariable long id,@RequestParam(defaultValue="distributed") String mode) throws InterruptedException {
@@ -27,6 +28,7 @@ public class RedisCacheController {
   catch(org.springframework.dao.DataAccessException e){
    // Fail open: Redis unavailable (connection refused or 500 ms command timeout) -> serve from MySQL without caching.
    // Availability is kept, but every request now hits the database (no stampede protection either).
+   FALLBACKS.incrementAndGet();
    String name=jdbc.queryForObject("SELECT name FROM products WHERE id=?",String.class,id);
    return Map.of("value","{\"id\":"+id+",\"name\":\""+name+"\"}","source","db-fallback","instance",instance,"ms",(System.nanoTime()-t0)/1e6,"error",e.getClass().getSimpleName());
   }
@@ -69,6 +71,6 @@ public class RedisCacheController {
  /** Explicit invalidation after a write; without it other instances serve the old value until the 30 s TTL expires. */
  @PostMapping("/invalidate") public Map<String,Object> invalidate(@RequestParam(defaultValue="42") long id){return Map.of("invalidated",Boolean.TRUE.equals(redis.delete("lab:product:"+id)));}
  @PostMapping("/reset") public Map<String,Object> reset(@RequestParam(defaultValue="42") long id){redis.delete(List.of("lab:product:"+id,"lab:loads:"+id,"lab:lock:"+id));return Map.of("reset",id);}
- @GetMapping("/loads") public Map<String,Object> loads(@RequestParam(defaultValue="42") long id){String v=redis.opsForValue().get("lab:loads:"+id);return Map.of("id",id,"loads",v==null?0:Long.parseLong(v));}
+ @GetMapping("/loads") public Map<String,Object> loads(@RequestParam(defaultValue="42") long id){String v=redis.opsForValue().get("lab:loads:"+id);return Map.of("id",id,"loads",v==null?0:Long.parseLong(v),"fallbacks",FALLBACKS.get(),"client","Lettuce");}
  @ExceptionHandler(IllegalArgumentException.class) @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST) public Object invalid(IllegalArgumentException e){return Map.of("error",String.valueOf(e.getMessage()));}
 }

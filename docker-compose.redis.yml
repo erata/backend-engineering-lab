@@ -1,7 +1,10 @@
-# Lab 08 shared cache: Redis + a second Spring Boot instance on the same MySQL and Redis.
-#   docker compose -f docker-compose.yml -f docker-compose.redis.yml up -d --build mysql mock-api redis app app2
+# Lab 08 shared cache: Redis + a second instance of one edition on the same database and Redis.
+#   Spring : docker compose -f docker-compose.yml -f docker-compose.redis.yml up -d --build mysql mock-api redis app app2
+#   Jakarta: docker compose -f docker-compose.yml -f docker-compose.redis.yml --profile jakarta up -d --build redis jakarta jakarta2
+#   .NET   : docker compose -f docker-compose.yml -f docker-compose.redis.yml --profile dotnet up -d --build redis dotnet dotnet2
+# Clients: Spring uses Lettuce, Jakarta Jedis (connection pool, REDIS_POOL_MAX, default 8), .NET StackExchange.Redis.
 # Note: both instances run the catalogue refresh job against one journal (the lab normally assumes a single
-# consumer). That is harmless for the Redis experiments, which do not modify products.
+# consumer). That is harmless for the Redis experiments, which do not modify products through the cache.
 services:
   redis:
     image: redis:7.4
@@ -17,5 +20,38 @@ services:
       REDIS_HOST: redis
     ports: !override
       - 127.0.0.1:${LAB_PORT2:-8083}:8080
+    cpus: ${LAB_CPUS:-4}
+    mem_limit: ${LAB_MEMORY:-2g}
+  # LAB_JAVA_TOOL_OPTIONS: extra JVM flags for one experiment (the DNS negative-cache check in Lab 08); empty by default.
+  jakarta:
+    environment:
+      REDIS_HOST: redis
+      REDIS_POOL_MAX: ${REDIS_POOL_MAX:-8}
+      JAVA_TOOL_OPTIONS: ${LAB_JAVA_TOOL_OPTIONS:-}
+  jakarta2:
+    extends:
+      file: docker-compose.yml
+      service: jakarta
+    profiles: [jakarta]
+    environment:
+      REDIS_HOST: redis
+      REDIS_POOL_MAX: ${REDIS_POOL_MAX:-8}
+      JAVA_TOOL_OPTIONS: ${LAB_JAVA_TOOL_OPTIONS:-}
+    ports: !override
+      - 127.0.0.1:${JAKARTA_PORT2:-8084}:8080
+    cpus: ${LAB_CPUS:-4}
+    mem_limit: ${LAB_MEMORY:-2g}
+  dotnet:
+    environment:
+      REDIS_HOST: redis
+  dotnet2:
+    extends:
+      file: docker-compose.yml
+      service: dotnet
+    profiles: [dotnet]
+    environment:
+      REDIS_HOST: redis
+    ports: !override
+      - 127.0.0.1:${DOTNET_PORT2:-8085}:8080
     cpus: ${LAB_CPUS:-4}
     mem_limit: ${LAB_MEMORY:-2g}
