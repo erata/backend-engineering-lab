@@ -6,9 +6,14 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Resources;
 var builder=WebApplication.CreateBuilder(args);
-builder.Services.AddSingleton<Catalog>();builder.Services.AddSingleton<PriceBook>();builder.Services.AddHostedService<RefreshWorker>();builder.Services.AddHttpClient();builder.Services.AddScoped<RequestData>();builder.Services.AddSingleton<SharedData>();
+builder.Services.AddSingleton<Catalog>();builder.Services.AddSingleton<PriceService>();builder.Services.AddSingleton<OutboxSignal>();builder.Services.AddHostedService<OutboxDispatcher>();builder.Services.AddHostedService<RefreshWorker>();builder.Services.AddHttpClient();builder.Services.AddScoped<RequestData>();builder.Services.AddSingleton<SharedData>();
+// Lab 06: a scoped service captured by a singleton. Resolved from the root provider on first use; in Development
+// (ValidateScopes=true) this throws "Cannot resolve scoped service from root provider", in Production it silently
+// creates one RequestContext that lives forever (captive dependency).
+builder.Services.AddScoped<RequestContext>();builder.Services.AddSingleton<CaptiveHolder>(sp=>new CaptiveHolder(sp.GetRequiredService<RequestContext>()));
+builder.Services.AddSingleton<SingletonUserHolder>();builder.Services.AddScoped<RequestUserHolder>();builder.Services.AddTransient<OwnedResource>();
 if(!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("OTEL_EXPORTER_OTLP_ENDPOINT")))builder.Services.AddOpenTelemetry().ConfigureResource(r=>r.AddService("backendlab-dotnet")).WithTracing(t=>t.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddOtlpExporter()).WithMetrics(m=>m.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddOtlpExporter());
-var app=builder.Build();var catalog=app.Services.GetRequiredService<Catalog>();await catalog.Initialize();
+var app=builder.Build();var catalog=app.Services.GetRequiredService<Catalog>();await catalog.Initialize();if(Environment.GetEnvironmentVariable("LAB_ENABLED")=="true")await PriceService.EnsureSchema();
 app.MapGet("/api/products",(int? page,int? size,string? search)=>{int p=page??1,s=size??10;if(p<1||s<1||s>100)return Results.BadRequest();var all=catalog.Read().Where(x=>x.Name.Contains(search??"",StringComparison.OrdinalIgnoreCase)).OrderBy(x=>x.Id).ToArray();return Results.Ok(new{page=p,size=s,total=all.Length,items=all.Skip((int)Math.Min((long)(p-1)*s,all.Length)).Take(s)});});
 app.MapGet("/api/products/{id:long}",(long id)=>catalog.Get(id) is Product p?Results.Ok(p):Results.NotFound());
 app.MapPost("/api/products",async(NameRequest req)=>{if(!Valid(req))return Results.BadRequest();long id=await catalog.Create(req.Name.Trim());return Results.Created($"/api/products/{id}",new{id,cacheVisibility="after refresh"});});
@@ -24,11 +29,89 @@ app.MapGet("/lab/threads/info",()=>new{runtime=Environment.Version.ToString(),pr
 app.MapGet("/lab/di/instances",(string? mode,IServiceProvider services)=>mode=="request"?new{id=services.GetRequiredService<RequestData>().Id,count=100000}:new{id=services.GetRequiredService<SharedData>().Id,count=100000});
 app.MapGet("/lab/resources/stampede",async(bool? single,int? requests)=>await Lab.Stampede(single??true,requests??32));
 app.MapGet("/lab/resources/pool",async(int? requests,int? permits)=>await Lab.Pool(requests??32,permits??5));
-app.MapPost("/lab/events/price-change",(PriceBook book,long? id,long? cents,string? mode,bool? rollback)=>{if(rollback==true)return Results.BadRequest("simulated abort before update; no transaction");return Results.Ok(book.Change(id??1,cents??100,mode??"event"));});
+app.MapPost("/lab/events/price-change",async(PriceService prices,long? id,long? cents,string? mode,bool? rollback,bool? failAudit)=>{var m=mode??"event";if((id??1)<1||(cents??100)<0||m is not ("direct" or "event"))return Results.BadRequest(new{error="mode direct|event"});
+ try{await prices.Change(id??1,cents??100,m,rollback==true,failAudit==true);return Results.Ok(new{id=id??1,cents=cents??100,mode=m});}catch(RolledBackException e){return Results.Problem(e.Message,statusCode:500);}});
+app.MapGet("/lab/events/state",async(PriceService prices,long? id)=>Results.Ok(await prices.State(id??1)));
+app.MapGet("/lab/di/captive",(string? mode,CaptiveHolder holder,IServiceProvider services)=>(mode??"captured") switch{"captured"=>Results.Ok(new{mode="captured",id=holder.Captured}),"scoped"=>Results.Ok(new{mode="scoped",id=services.GetRequiredService<RequestContext>().Id}),_=>Results.BadRequest(new{error="mode captured|scoped"})});
+app.MapGet("/lab/di/mutable",async(string? mode,string? user,int? delayMs,SingletonUserHolder singleton,RequestUserHolder scoped)=>{
+ if(user is null||(delayMs??5) is <0 or >100)return Results.BadRequest(new{error="user required, delayMs 0..100"});
+ IUserHolder? holder=(mode??"singleton") switch{"singleton"=>singleton,"request"=>scoped,_=>null};if(holder is null)return Results.BadRequest(new{error="mode singleton|request"});
+ holder.User=user;await Task.Delay(delayMs??5);var seen=holder.User;return Results.Ok(new{mode=mode??"singleton",expected=user,actual=seen,correct=user==seen});});
+// Ownership as in a BackgroundService: resolving a disposable transient from the root provider makes the root its owner
+// (disposed only at application shutdown = a leak per call); a scope per unit of work disposes it at the end of the scope.
+app.MapGet("/lab/di/ownership",(string? mode,int? n)=>{int count=n??100;if(count is <1 or >10000)return Results.BadRequest(new{error="n 1..10000"});
+ long c0=Interlocked.Read(ref OwnedResource.Created),d0=Interlocked.Read(ref OwnedResource.Disposed);
+ switch(mode??"root"){case "root":for(int i=0;i<count;i++)app.Services.GetRequiredService<OwnedResource>();break;
+  case "scope":for(int i=0;i<count;i++){using var scope=app.Services.CreateScope();scope.ServiceProvider.GetRequiredService<OwnedResource>();}break;
+  default:return Results.BadRequest(new{error="mode root|scope"});}
+ return Results.Ok(new{mode=mode??"root",created=Interlocked.Read(ref OwnedResource.Created)-c0,disposed=Interlocked.Read(ref OwnedResource.Disposed)-d0});});
+app.MapGet("/lab/resources/db",async(int? pool,int? ms)=>{int p=pool??5,d=ms??30;if(p is not (5 or 20)||d is <1 or >1000)return Results.BadRequest(new{error="pool 5|20, ms 1..1000"});
+ var sw=System.Diagnostics.Stopwatch.StartNew();
+ try{await using var c=new MySqlConnection(Pools.For(p));await c.OpenAsync();var waitMs=sw.Elapsed.TotalMilliseconds;await using var cmd=c.CreateCommand();cmd.CommandText="SELECT SLEEP(@s)";cmd.Parameters.AddWithValue("@s",d/1000.0);await cmd.ExecuteScalarAsync();return Results.Ok(new{pool=p,waitMs});}
+ catch(MySqlException e){return Results.Json(new{pool=p,error=e.Message},statusCode:503);}});
 }app.Run();
 static bool Valid(NameRequest? req)=>req?.Name is {Length: >0 and <=255} n&&!string.IsNullOrWhiteSpace(n);
 public sealed record NameRequest(string Name);
-public sealed class PriceBook {private readonly ConcurrentDictionary<long,long> prices=new();private long audit;private event Action? Changed;public PriceBook(){Changed+=()=>Interlocked.Increment(ref audit);}public object Change(long id,long cents,string mode){if(id<1||cents<0||mode is not ("event" or "direct"))throw new ArgumentException();prices[id]=cents;if(mode=="event")Changed?.Invoke();else Interlocked.Increment(ref audit);return new{id,cents,auditCount=Interlocked.Read(ref audit)};}}
+// ---- Lab 06: DI lifetimes ----------------------------------------------------------------------------------
+public sealed class RequestContext{public Guid Id{get;}=Guid.NewGuid();}
+public sealed class CaptiveHolder(RequestContext captured){public Guid Captured=>captured.Id;}
+public interface IUserHolder{string? User{get;set;}}
+public sealed class SingletonUserHolder:IUserHolder{public string? User{get;set;}}
+public sealed class OwnedResource:IDisposable{public static long Created,Disposed;public OwnedResource(){Interlocked.Increment(ref Created);}public void Dispose()=>Interlocked.Increment(ref Disposed);}
+public sealed class RequestUserHolder:IUserHolder{public string? User{get;set;}}
+
+// ---- Lab 08: two real MySqlConnector pools (5 / 20), 1 s wait for a free connection --------------------------
+public static class Pools{
+ static readonly string Cs=Environment.GetEnvironmentVariable("DB_CONNECTION")??"Server=localhost;Database=backendlab;User ID=lab;Password=local-lab-password";
+ public static string For(int size)=>$"{Cs};Minimum Pool Size={size};Maximum Pool Size={size};Connection Timeout=1;Application Name=lab-pool-{size}";
+}
+
+// ---- Lab 07: price change with a transactional outbox ------------------------------------------------------------
+// direct: price + audit in one MySQL transaction.
+// event : price + outbox row in one transaction (the event is committed atomically with the state change);
+//         OutboxDispatcher turns outbox rows into audit rows in a second transaction (at-least-once, here exactly-once
+//         because the outbox row is deleted in the same transaction as the audit insert).
+// rollback=true: the transaction is rolled back after the update -> neither price, audit nor outbox row persists.
+public sealed class RolledBackException(string m):Exception(m);
+public sealed class OutboxSignal{public readonly SemaphoreSlim Ready=new(0);}
+public sealed class PriceService(OutboxSignal signal){
+ static readonly string Cs=Environment.GetEnvironmentVariable("DB_CONNECTION")??"Server=localhost;Database=backendlab;User ID=lab;Password=local-lab-password";
+ public static async Task EnsureSchema(){await using var c=new MySqlConnection(Cs);await c.OpenAsync();await using var cmd=c.CreateCommand();
+  cmd.CommandText="CREATE TABLE IF NOT EXISTS lab_prices(product_id BIGINT PRIMARY KEY,cents BIGINT NOT NULL);CREATE TABLE IF NOT EXISTS lab_price_audit(id BIGINT AUTO_INCREMENT PRIMARY KEY,product_id BIGINT NOT NULL,cents BIGINT NOT NULL);CREATE TABLE IF NOT EXISTS lab_outbox(id BIGINT AUTO_INCREMENT PRIMARY KEY,product_id BIGINT NOT NULL,cents BIGINT NOT NULL,created DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6))";await cmd.ExecuteNonQueryAsync();
+  // fail_remaining simulates a failing handler: the dispatcher leaves the row in the outbox and retries it on the next poll.
+  cmd.CommandText="ALTER TABLE lab_outbox ADD COLUMN fail_remaining INT NOT NULL DEFAULT 0";try{await cmd.ExecuteNonQueryAsync();}catch(MySqlException e) when(e.Number==1060){/* column exists */}}
+ public async Task Change(long id,long cents,string mode,bool rollback,bool failAudit=false){
+  await using var c=new MySqlConnection(Cs);await c.OpenAsync();await using var tx=await c.BeginTransactionAsync();await using var cmd=c.CreateCommand();cmd.Transaction=tx;
+  cmd.CommandText="INSERT INTO lab_prices(product_id,cents) VALUES(@id,@c) ON DUPLICATE KEY UPDATE cents=VALUES(cents)";cmd.Parameters.AddWithValue("@id",id);cmd.Parameters.AddWithValue("@c",cents);await cmd.ExecuteNonQueryAsync();
+  if(mode=="direct"&&failAudit){await tx.RollbackAsync();throw new RolledBackException("audit failed inside the transaction: price change rolled back");}
+  cmd.CommandText=mode=="direct"?"INSERT INTO lab_price_audit(product_id,cents) VALUES(@id,@c)":"INSERT INTO lab_outbox(product_id,cents,fail_remaining) VALUES(@id,@c,@f)";cmd.Parameters.AddWithValue("@f",failAudit?2:0);await cmd.ExecuteNonQueryAsync();
+  if(rollback){await tx.RollbackAsync();throw new RolledBackException("intentional rollback: price, audit and outbox row discarded");}
+  await tx.CommitAsync();if(mode=="event")signal.Ready.Release();
+ }
+ public async Task<object> State(long id){await using var c=new MySqlConnection(Cs);await c.OpenAsync();await using var cmd=c.CreateCommand();
+  cmd.CommandText="SELECT (SELECT COUNT(*) FROM lab_price_audit WHERE product_id=@id),(SELECT COALESCE(MAX(cents),-1) FROM lab_prices WHERE product_id=@id),(SELECT COUNT(*) FROM lab_outbox WHERE product_id=@id)";cmd.Parameters.AddWithValue("@id",id);
+  await using var r=await cmd.ExecuteReaderAsync();await r.ReadAsync();return new{id,auditCount=r.GetInt64(0),cents=r.GetInt64(1),outboxPending=r.GetInt64(2)};}
+ public static async Task<int> DispatchBatch(){
+  await using var c=new MySqlConnection(Cs);await c.OpenAsync();await using var tx=await c.BeginTransactionAsync();await using var cmd=c.CreateCommand();cmd.Transaction=tx;
+  cmd.CommandText="SELECT id,product_id,cents,fail_remaining FROM lab_outbox ORDER BY id LIMIT 500 FOR UPDATE SKIP LOCKED";var all=new List<(long Id,long P,long C,int F)>();
+  await using(var r=await cmd.ExecuteReaderAsync()){while(await r.ReadAsync())all.Add((r.GetInt64(0),r.GetInt64(1),r.GetInt64(2),r.GetInt32(3)));}
+  var failing=all.Where(x=>x.F>0).ToList();var rows=all.Where(x=>x.F==0).ToList();
+  if(failing.Count>0){cmd.CommandText="UPDATE lab_outbox SET fail_remaining=fail_remaining-1 WHERE id IN ("+string.Join(",",failing.Select(x=>x.Id))+")";await cmd.ExecuteNonQueryAsync();}
+  if(rows.Count==0){await tx.CommitAsync();return 0;}   // failing rows stay and are retried on the next poll
+  cmd.CommandText="INSERT INTO lab_price_audit(product_id,cents) VALUES "+string.Join(",",rows.Select(x=>$"({x.P},{x.C})"));await cmd.ExecuteNonQueryAsync();
+  cmd.CommandText="DELETE FROM lab_outbox WHERE id IN ("+string.Join(",",rows.Select(x=>x.Id))+")";await cmd.ExecuteNonQueryAsync();
+  await tx.CommitAsync();return rows.Count;
+ }
+}
+public sealed class OutboxDispatcher(OutboxSignal signal,ILogger<OutboxDispatcher> log):BackgroundService{
+ protected override async Task ExecuteAsync(CancellationToken ct){
+  if(Environment.GetEnvironmentVariable("LAB_ENABLED")!="true")return;
+  while(!ct.IsCancellationRequested){
+   await signal.Ready.WaitAsync(TimeSpan.FromSeconds(1),ct);   // wake on commit, or poll every second (crash recovery)
+   try{while(await PriceService.DispatchBatch()>0){}}catch(Exception e){log.LogError(e,"outbox dispatch failed");}
+  }
+ }
+}
 
 public sealed record Product(long Id,string Name,DateTime? LastUpdatedTime);
 public sealed class Catalog {
