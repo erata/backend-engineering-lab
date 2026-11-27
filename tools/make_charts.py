@@ -27,7 +27,7 @@ THEMES = {
     'dark': dict(surface='#191919', ink='#efefef', ink2='#9c9c9c', grid='#303030', axis='#474747',
                  series=['#338ced', '#e76624', '#00a888', '#d28e05'], critical='#dc3c3d', good='#0aac23', muted='#474747'),
 }
-plt.rcParams.update({'svg.fonttype': 'none', 'font.family': ['Segoe UI', 'DejaVu Sans', 'sans-serif'], 'font.size': 10})
+plt.rcParams.update({'svg.hashsalt': 'backend-lab', 'svg.fonttype': 'none', 'font.family': ['Segoe UI', 'DejaVu Sans', 'sans-serif'], 'font.size': 10})
 
 # ---------------------------------------------------------------- data loading
 def v2_runs():
@@ -76,7 +76,8 @@ def legend(ax, t, handles_labels, loc='lower right'):
 def save(fig, name, mode, top=0.80):
     OUT.mkdir(parents=True, exist_ok=True)
     fig.subplots_adjust(top=top)
-    fig.savefig(OUT / f'{name}-{mode}.svg', facecolor=fig.get_facecolor(), bbox_inches='tight', pad_inches=0.15)
+    # deterministic output (fixed hash salt, no date) so that regenerated charts can be diffed byte for byte
+    fig.savefig(OUT / f'{name}-{mode}.svg', facecolor=fig.get_facecolor(), bbox_inches='tight', pad_inches=0.15, metadata={'Date': None})
     if os.environ.get('CHART_PNG_DIR'):   # optional raster copies for visual review
         fig.savefig(Path(os.environ['CHART_PNG_DIR']) / f'{name}-{mode}.png', facecolor=fig.get_facecolor(), bbox_inches='tight', pad_inches=0.15, dpi=110)
     plt.close(fig)
