@@ -59,6 +59,8 @@ Every mode returns exactly three bodies in the order product, inventory, pricing
 
 ## 6. Benchmark methodology
 
+> **Test machine (applies to every number in this lab):** one laptop, Intel Core i7-13700H (6 performance + 8 efficiency cores, 20 threads), 32 GB RAM, Windows 11 with Docker in WSL2. Each backend container is limited to 4 CPUs and 2 GB unless stated; k6, MySQL and the mock upstream run on the same machine. CPU quotas on a hybrid-core laptop are not pinned cores, and power/thermal management can shift results, so treat absolute numbers as environment-specific and compare only rows measured the same way. Details: [report §2](../../reports/BENCHMARK_REPORT.md#2-environment-and-method).
+
 k6 constant arrival rate, 50 req/s for 30 s per mode, 4 CPUs per backend. 50 req/s keeps the Java servers below their thread limits (≈ 30 requests in flight); the overload case is [Lab 04](../04-virtual-threads/README.md). Repeated 5× for the main modes (v2 runs).
 
 ## 7. Results

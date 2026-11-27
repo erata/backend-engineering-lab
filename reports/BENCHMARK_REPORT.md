@@ -23,7 +23,7 @@ These are **indicative measurements of these lab implementations on one workstat
 | 11 | **Hot-row contention:** keeping the audit in the price transaction collapses Spring at 200 req/s (p50 1.6–8.7 s across 5 runs); moving it after commit gives p50 2.7 ms. The outbox keeps the transaction long (p50 658 ms) | 07 | §3.7 |
 | 12 | **Pools behave as Little's law predicts:** pool 5 × 30 ms ≈ 160 successful req/s in all three editions; they differ in failure mode (fail fast vs queue) | 08 | §3.8 |
 | 13 | **Stampede size = effective concurrency** (8 / 32 / 100 loads); single-flight → 1; across 2 instances local single-flight → 2, Redis lock → 1 (same on all three editions) | 08 | §3.8 |
-| 14 | **Redis clients matter more during an outage than on a hit.** With identical 500 ms timeouts, requests during an outage took 507 ms (Lettuce), 4 ms (Jedis, JVM negative DNS cache) or 1,000 ms (StackExchange.Redis); Jedis then needed 9.5 s to use Redis again (10 ms with the DNS cache off). Hit latency: +0.4–0.8 ms at p50 (Jedis +1–2.5 ms) | 08 | §3.8 (hit: 3 runs; outage: 1 run, DNS A/B) |
+| 14 | **Redis clients matter more during an outage than on a hit.** With "500 ms" configured everywhere, a request during an outage waited ~510 ms (Lettuce), 8–510 ms (Jedis, depending on the outage kind) or ~1,000 ms (StackExchange.Redis, timeouts checked on a 1 s heartbeat; 600 ms with a 100 ms heartbeat). Lettuce `REJECT_COMMANDS` fails fast except when the connection hangs. The JVM's negative DNS cache occasionally delays Jedis recovery to 9.5 s. Hit latency: +0.4–0.8 ms at p50 (Jedis +1–2.5 ms) | 08 | §3.8 (hit: 3 runs; outage: 5 runs × 3 kinds per setting, A/B per client) |
 
 ## 2. Environment and method
 
@@ -52,7 +52,9 @@ These are **indicative measurements of these lab implementations on one workstat
 | [http-runs/20261127T063929Z](http-runs/20261127T063929Z/REPORT.md) | v4: Java 17, Jakarta I/O, .NET 10/11 I/O | valid except the Jakarta saturation phase (before F9) |
 | [http-runs/20261127T074359Z](http-runs/20261127T074359Z/REPORT.md) | v4: Jakarta saturation after F9 | valid |
 | [http-runs/20261127T172412Z](http-runs/20261127T172412Z/REPORT.md) | v5: Redis on all three editions (Lettuce, Jedis, StackExchange.Redis): hits, stampede, consistency, outage | valid; Jakarta k6 rows superseded by v5b (WildFly warm-up) |
-| [http-runs/20261127T174040Z](http-runs/20261127T174040Z/REPORT.md) | v5b: Jedis 5× repetitions (pool 8 / 64), negative-DNS-cache A/B | valid; runs 1–2 are warm-up |
+| [http-runs/20261127T174040Z](http-runs/20261127T174040Z/REPORT.md) | v5b: Jedis 5× repetitions (pool 8 / 64), negative-DNS-cache A/B | k6 rows valid (runs 1–2 are warm-up); the DNS A/B is **invalid** (F15) |
+| [http-runs/20261127T201204Z](http-runs/20261127T201204Z/REPORT.md) | v6: Redis outages, 5 runs × stop / pause / kill, Lettuce queue vs reject, StackExchange.Redis heartbeat 1,000 / 500 / 100 ms | valid; supersedes the v5 outage rows; `v6-outage-jakarta-dns0` invalid (F15) |
+| [http-runs/20261127T203811Z](http-runs/20261127T203811Z/REPORT.md) | v6b: Jedis with JVM DNS cache settings applied as security properties | valid |
 
 ---
 
@@ -149,14 +151,20 @@ Stampede, 100 requests: in-process 32 / 8 / 100 loads without coordination, 1 wi
 | Jedis, pool 64 (Jakarta) | 3 (runs 3–5) | 2.56 [1.93 – 7.46] | 301.1 [195.6 – 308.9] | 1.54 / 185.6 |
 | StackExchange.Redis (.NET) | 3 | 1.30 [1.29 – 1.31] | 45.9 [41.0 – 50.8] | 0.93 / 35.5 |
 
-| Redis outage (500 ms timeouts) | stopped: ms per request | recovery | paused: ms per request | recovery |
-|---|---:|---:|---:|---:|
-| Lettuce | 507 | 961 ms | 509 | 6 ms |
-| Jedis | 4 (first 2,768) | 9,532 ms | 508 | 23 ms |
-| Jedis, negative DNS cache off | 513 | 10 ms | 511 | 10 ms |
-| StackExchange.Redis | 1,000 | 726 ms | 999 | 945 ms |
+Redis outage, 5 runs per kind (median ms per request · median recovery ms):
 
-All requests were served from MySQL during the outage; the catalogue API was unaffected.
+| Client, setting | stopped (DNS name gone) | paused (no replies) | process killed (refused) |
+|---|---|---|---|
+| Lettuce, default (queue) | 512 · 563 | 512 · 11 | 551 · 3,083 |
+| Lettuce, `REJECT_COMMANDS` | 25 · 243 | 520 · 18 | 10 · 242 |
+| Jedis, JVM DNS cache default | 513 · 115 (max 9,578) | 510 · 16 | 8 · 112 |
+| Jedis, negative DNS TTL 0 | 517 · 116 | 512 · 11 | 9 · 115 |
+| Jedis, no JVM DNS cache | 2,305 · 114 | 511 · 10 | 9 · 115 |
+| StackExchange.Redis, heartbeat 1,000 ms | 1,000 · 1,711 | 1,000 · 16 | 999 · 995 |
+| StackExchange.Redis, heartbeat 500 ms | 1,000 · 791 | 999 · 367 | 1,000 · 446 |
+| StackExchange.Redis, heartbeat 100 ms | 600 · 315 | 600 · 6 | 600 · 226 |
+
+All 7,200 outage requests were served from MySQL (0 HTTP errors); the catalogue API was unaffected. Full distributions (p95, max, concurrent requests, DB queries, connections): [Lab 08 §7.5](../labs/08-resource-management/README.md#75-redis-outages).
 
 ---
 
@@ -177,9 +185,12 @@ Every result above is a **measured observation**. This table classifies the *exp
 | Hot-row collapse caused by row-lock hold time | **hypothesis** (well supported) | same SQL in both modes, only lock hold time differs; InnoDB lock waits not monitored |
 | 8 workers beat 4 under a 4-CPU quota because the quota is time, not cores | **hypothesis** | CFS semantics; `cpu.stat` not captured for those runs |
 | .NET per-request payload p95 caused by LOH / gen-2 GCs | **hypothesis** | GC design; no GC log captured |
-| Jedis recovers 9.5 s after Redis returns because the JVM caches the failed DNS lookup for 10 s | **confirmed root cause** | A/B: recovery 10 ms with `sun.net.inetaddr.negative.ttl=0`; failures then take ~510 ms instead of 4 ms |
-| Lettuce waits the full timeout during an outage because it queues commands while reconnecting | **consistent with the client's documented design** | `QueryTimeoutException` after 507 ms in both outage types; client internals not traced |
-| StackExchange.Redis needs ~1 s per request with a 500 ms timeout because timeouts are checked on a 1 s heartbeat | **hypothesis** | 999–1,000 ms in both outage types, recovery 0.7–0.9 s; not verified in the client source |
+| Jedis's occasional 9.5 s recovery comes from the JVM's 10 s negative DNS cache | **confirmed root cause** | A/B with the security property: 1 of 5 runs with the default, 0 of 10 with negative TTL 0 or no cache. (An earlier A/B used a system property the JDK ignores, F15) |
+| Jedis's usual ~510 ms during a stopped-Redis outage is a connect timeout to the cached old address | **hypothesis** (well supported) | 30 s positive DNS cache; without a JVM DNS cache every request pays the failing lookup instead (2.3–2.8 s) |
+| A failing lookup of a stopped container's name takes 2.3–2.8 s | **hypothesis** | Docker's embedded DNS forwards unknown names upstream (WSL2/Windows); environment-specific, not traced |
+| Lettuce waits the full timeout during an outage because it queues commands while disconnected | **confirmed** | A/B: `REJECT_COMMANDS` 10–25 ms (stopped, killed); paused unchanged (520 ms) because the open connection looks healthy |
+| Lettuce recovers slowly after a killed process (median 3.1 s) because of its exponential reconnect back-off | **hypothesis** | refused attempts fail instantly, so the back-off grows fastest; 0.24 s with `REJECT_COMMANDS` (shorter outage); not traced |
+| StackExchange.Redis needs ~1 s with a 500 ms timeout because timeouts are evaluated on the heartbeat | **confirmed** | client documentation; A/B: heartbeat 100 ms → 600 ms, recovery 1.7 s → 0.3 s. Exact rounding (500 ms heartbeat still 1,000 ms) **unresolved** |
 | Jakarta's Redis p99 is mostly WildFly, not Jedis | **hypothesis** (well supported) | in-process WildFly p99 186 ms vs Redis 301–325 ms; Spring and .NET p99 much lower with the same Redis |
 | WildFly default executor size ≈ 2 × CPUs | **observation** | 8 tasks at 4 CPUs, 40 at 20 CPUs; default not read from the source |
 | Inline after-commit pattern does not deadlock on WildFly | **hypothesis** | JTA connection handling; not verified in WildFly code |
@@ -187,10 +198,11 @@ Every result above is a **measured observation**. This table classifies the *exp
 | Why run 1 virtual threads were not affected by the threaded mock | **unresolved** | – |
 | WildFly needs more CPU per catalogue request | **unresolved** | not profiled |
 | .NET client-span count 17 instead of 15 | **unresolved** | – |
-| Jedis: first failing request took 2.8 s when Redis was stopped | **unresolved** | – |
+| Jedis: first request during a paused Redis takes ~1,010 ms (twice the socket timeout) | **unresolved** | – |
+| 50 concurrent failing DNS lookups queued up to 18.5 s (Jedis, negative TTL 0) | **unresolved** | – |
 ## 5. Defects found by benchmarking
 
-Benchmarks and probes found defects that unit tests had missed. All are fixed and listed in [VALIDATION_STATUS.md](../docs/VALIDATION_STATUS.md): the Hikari deadlock (F4), CDI proxy defects (F2, F3), the bounded WildFly virtual executor (F9), a JAX-RS routing defect found by the clean-checkout test (F14), and harness defects that would otherwise have been reported as backend results (F6 Nagle, F8 threaded mock, suite spill-over, IPv6 `localhost` delays, host standby).
+Benchmarks and probes found defects that unit tests had missed. All are fixed and listed in [VALIDATION_STATUS.md](../docs/VALIDATION_STATUS.md): the Hikari deadlock (F4), CDI proxy defects (F2, F3), the bounded WildFly virtual executor (F9), a JAX-RS routing defect found by the clean-checkout test (F14), an invalid DNS A/B that had "confirmed" a wrong explanation until repetition exposed it (F15), and harness defects that would otherwise have been reported as backend results (F6 Nagle, F8 threaded mock, suite spill-over, IPv6 `localhost` delays, host standby).
 
 ## 6. Limitations
 
@@ -198,5 +210,5 @@ Benchmarks and probes found defects that unit tests had missed. All are fixed an
 - Docker CPU quotas on a hybrid-core laptop are not pinned cores. k6, the mock and MySQL share the host.
 - Cross-framework rows compare these implementations (different JSON stacks, pools and code paths), not the frameworks in general.
 - Open, unexplained observations: Jakarta `direct` handling the hot row better than Spring and .NET; why run 1's virtual-thread result was not affected by the threaded mock; WildFly's higher CPU per catalogue request.
-- Redis: one client per edition, so for hit latency the client is confounded with the framework; outage probes ran once per client.
+- Redis: one client per edition, so hit latency is an end-to-end framework + client measurement; outage behaviour is mostly client-specific but measured with Docker-induced failures (stop, pause, process kill), not real network partitions or managed-service failovers.
 - Not measured: agent/SDK overhead, Redis cluster behaviour, other Redis clients (Redisson, Lettuce on Jakarta), more than one outbox dispatcher.

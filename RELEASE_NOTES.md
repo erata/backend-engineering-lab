@@ -3,7 +3,9 @@
 ## Unreleased (after v1.0.0)
 
 - **Lab 08: Redis on all three editions.** The shared-cache experiment now runs on Jakarta EE (Jedis 8, pooled connections) and ASP.NET Core (StackExchange.Redis 3, one multiplexed connection) as well as Spring (Lettuce), with a second instance of each edition in `docker-compose.redis.yml`.
-- **New measurement: Redis client behaviour.** Hit latency at 2,000 req/s, and an outage probe (Redis stopped / paused) with identical 500 ms timeouts. Main result: the clients differ little on a hit but a lot during an outage (507 / 4 / 1,000 ms per request; Jedis recovery 9.5 s, caused by the JVM's negative DNS cache and confirmed by an A/B run). See [Lab 08 §7.4](labs/08-resource-management/README.md#74-redis-clients-compared) and [report §3.8](reports/BENCHMARK_REPORT.md).
+- **New measurement: Redis client behaviour.** Hit latency at 2,000 req/s, and outages (Redis stopped, paused, process killed; 5 runs each) with 500 ms timeouts in every client, plus one A/B per client: Lettuce queue vs `REJECT_COMMANDS`, Jedis with JVM DNS cache settings, StackExchange.Redis heartbeat 1,000 / 500 / 100 ms. Main result: the clients differ little on a hit but a lot during an outage (~510 / 8–510 / ~1,000 ms per request); explanations are classified as confirmed or hypothesis. See [Lab 08 §7.4–7.5](labs/08-resource-management/README.md#75-redis-outages) and [report §3.8](reports/BENCHMARK_REPORT.md).
+- **Correction (F15):** a first single outage run had reported a Jedis/DNS root cause as confirmed using a JVM system property that the JDK ignores. Repeating the runs and applying the setting correctly changed the conclusion; see [VALIDATION_STATUS.md](docs/VALIDATION_STATUS.md).
+- All lab READMEs now state the test machine and why it limits the results.
 - README technology table and CI status brought up to date.
 
 ## v1.0.0

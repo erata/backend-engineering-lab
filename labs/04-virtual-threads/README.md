@@ -56,6 +56,8 @@ Every request must return three ordered upstream bodies (k6 JSON check; `compare
 
 ## 6. Benchmark methodology
 
+> **Test machine (applies to every number in this lab):** one laptop, Intel Core i7-13700H (6 performance + 8 efficiency cores, 20 threads), 32 GB RAM, Windows 11 with Docker in WSL2. Each backend container is limited to 4 CPUs and 2 GB unless stated; k6, MySQL and the mock upstream run on the same machine. CPU quotas on a hybrid-core laptop are not pinned cores, and power/thermal management can shift results, so treat absolute numbers as environment-specific and compare only rows measured the same way. Details: [report §2](../../reports/BENCHMARK_REPORT.md#2-environment-and-method).
+
 k6 constant arrival **400 req/s** on the blocking endpoint for 30 s, one 10 s warm-up, then **5 measured repetitions** (Jakarta/.NET saturation: 3), 4 CPUs / 2 GB, VUs up to 3,000, 10 s client timeout. The upstream mock is a single-threaded asyncio server, so it cannot become the bottleneck ([why](../../reports/investigations/2026-11-27-anomalies.md#1-virtual-threads-slower-than-platform-threads-at-400-reqs-lab-04)). The suite waits until the backend has drained its queue before the next run.
 
 ## 7. Results

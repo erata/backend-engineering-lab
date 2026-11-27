@@ -4,7 +4,7 @@
 
 An independently runnable, cross-framework engineering laboratory. Three implementations of one small product-catalogue scenario explore the same engineering questions without requiring a distributed product architecture. The focus is learning, correctness, repeatability and trade-offs, not declaring a universal framework winner.
 
-> **Release status (2026-11-27): built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Fourteen defects found during validation were fixed, and a clean-checkout reproduction passed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
+> **Release status (2026-11-27): built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Fifteen defects found during validation were fixed (F15 after v1.0.0: a wrongly confirmed Redis/DNS explanation), and a clean-checkout reproduction passed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
 >
 > **Results:** [Consolidated benchmark report](reports/BENCHMARK_REPORT.md) · [Benchmark guide](docs/BENCHMARKS.md) · [Release notes](RELEASE_NOTES.md)
 
@@ -80,7 +80,7 @@ Each lab README contains the use case, invariants, the implementation per framew
 | 05 | CPU-bound recalculation on 1–8 CPUs | ~4–5× speed-up with 8 workers; speed-up capped by the CPU quota | [Multicore](labs/05-cpu-parallelism/README.md) |
 | 06 | DI lifetimes, captive dependencies, ownership, shared state | singleton "current user" wrong in 95–98 % of concurrent responses; per-request payload 3–15× CPU | [Dependency injection](labs/06-dependency-injection/README.md) |
 | 07 | Price change + audit: direct, after-commit event, outbox | hot-row collapse in `direct`; Hikari deadlock in `event-inline`; after-commit audit lost on failure, outbox recovers it | [Domain events](labs/07-domain-events/README.md) |
-| 08 | Stampede, real DB pool, Redis across 2 instances, Redis clients compared | single-flight 1 load vs 8–100; Redis lock 1 vs local 2; pool 5 × 30 ms ≈ 160 req/s everywhere; same 500 ms timeout, outage latency 4 / 507 / 1,000 ms by client | [Resource management](labs/08-resource-management/README.md) |
+| 08 | Stampede, real DB pool, Redis across 2 instances, Redis clients compared | single-flight 1 load vs 8–100; Redis lock 1 vs local 2; pool 5 × 30 ms ≈ 160 req/s everywhere; with the same 500 ms setting, a request during a Redis outage waits ~510 ms (Lettuce), 8–510 ms (Jedis) or ~1,000 ms (StackExchange.Redis) | [Resource management](labs/08-resource-management/README.md) |
 
 The earlier release sequence is now a navigation and learning sequence, not a claim that every numbered production release has been built or validated. See the [implementation coverage matrix](docs/ROADMAP.md) for explicit differences and remaining work.
 
@@ -173,6 +173,7 @@ The first two Python commands compile actual portable Java sources with the loca
 
 ## 8. Benchmark methodology
 
+- All published numbers come from **one laptop** (Intel Core i7-13700H, 6 P + 8 E cores, 32 GB, Windows 11, Docker in WSL2; backends limited to 4 CPUs / 2 GB, load generator and databases on the same machine). That is a limitation in itself: hybrid cores, shared host resources and power management add noise, so absolute numbers do not transfer to servers ([environment](reports/BENCHMARK_REPORT.md#2-environment-and-method)).
 - First validate functional and concurrency invariants; a fast incorrect result is not a successful implementation.
 - Vary one factor at a time: same JDK, different cache; same JDK, platform versus virtual; then same application with another runtime. Do not rank different frameworks as if a single laptop result were universal.
 - Match data, seed, payload, CPU quota, memory, connection settings, warm-up, test duration and telemetry state. Compare one backend at a time; record dropped iterations, error rate and tail latency as well as throughput.

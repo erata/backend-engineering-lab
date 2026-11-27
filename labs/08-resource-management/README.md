@@ -55,21 +55,60 @@ Pool acquisition timeouts: Hikari 1 s, MySqlConnector 1 s, WildFly default (30 s
 | request threads while waiting for a connection | Tomcat thread blocked | Undertow worker blocked | none (async open) |
 | pool timeout | 1 s → HTTP 503 | 30 s (default) → queueing | 1 s → HTTP 503 |
 | concurrency available for a stampede | 32-thread executor | default managed executor: no explicit size in `standalone.xml`; measured 8 concurrent tasks at 4 CPUs and 40 at 20 CPUs (≈ 2 × CPUs) | unbounded async tasks |
-| Redis client | Lettuce (Spring Data Redis): one shared connection, commands multiplexed; queues commands while reconnecting | Jedis 8 `RedisClient`: one pooled connection per command (`REDIS_POOL_MAX`, default 8; 500 ms wait for a free connection) | StackExchange.Redis: one multiplexed connection, async API, background reconnect |
-| Redis timeouts (all set to 500 ms here) | command timeout (default 60 s) | connect + socket timeout (default 2 s) | connect, sync and async timeout (default 5 s) |
+| Redis client | Lettuce (multiplexed) | Jedis (pooled) | StackExchange.Redis (multiplexed) — see §4.1 |
+
+### 4.1 Redis clients: connection model and effective settings
+
+```mermaid
+flowchart LR
+  subgraph P["Pooled client"]
+    direction TB
+    a1[request 1] --> c1[(connection 1)]
+    a2[request 2] --> c2[(connection 2)]
+    a9[request 9] -. "waits ≤ 500 ms for a free connection, then DB fallback" .-> pool{{"Jedis pool: max 8"}}
+    c1 --> r1[(Redis)]
+    c2 --> r1
+  end
+  subgraph M["Multiplexed client"]
+    direction TB
+    b1[request 1] --> q[["in-flight commands (and queue while disconnected)"]]
+    b2[request 2] --> q
+    b3[request N] --> q
+    q --> c3[("one TCP connection: Lettuce, StackExchange.Redis")] --> r2[(Redis)]
+  end
+```
+
+A pooled client gives each concurrent command its own connection: the caller's thread blocks on that connection, and the pool size limits concurrency. A multiplexed client writes all commands to one connection and matches replies in order; nothing to size, but one broken connection affects every request at once.
+
+"500 ms timeout" does not mean the same thing in the three clients. The settings actually in effect:
+
+| Setting | Lettuce 7.8 via Spring Data Redis (Spring) | Jedis 8.0.2 (Jakarta) | StackExchange.Redis 3.4.35 (.NET) |
+|---|---|---|---|
+| Connections to Redis | one shared native connection (Spring default) | pool, max 8 (`REDIS_POOL_MAX`; 64 in one run), opened on demand | one multiplexed connection |
+| Connect timeout | 500 ms (`spring.data.redis.connect-timeout`) | 500 ms (`connectionTimeoutMillis`) | 500 ms (`ConnectTimeout`) |
+| Command timeout | 500 ms per command (`spring.data.redis.timeout`) | none; socket **read** timeout 500 ms (`socketTimeoutMillis`) | 500 ms (`AsyncTimeout`, `SyncTimeout`), **checked on each heartbeat** |
+| Pool acquisition timeout | – | 500 ms (`maxWait`) | – |
+| While disconnected | accepts and queues commands (default with auto-reconnect; queue unbounded); v6 also `REJECT_COMMANDS` | no queue: each command borrows or opens a connection and fails if it cannot | backlog (`BacklogPolicy.Default`): queues commands, subject to the async timeout |
+| Reconnect | automatic, exponential back-off capped at 30 s (Lettuce default) | nothing to reconnect: the next borrow opens a new connection | automatic, driven by the heartbeat |
+| Heartbeat | – | – | 1,000 ms default (`HeartbeatInterval`); v6 also 500 and 100 ms |
+| DNS caching in the client process | JVM resolver cache (not examined further) | JVM `InetAddress` cache: failures 10 s (`networkaddress.cache.negative.ttl`), successes 30 s | operating-system resolver (no in-process cache configured) |
+| Library defaults this lab overrides | command timeout 60 s | connect/socket timeout 2 s, pool wait unlimited | timeouts 5 s |
 
 ## 5. Correctness tests
 
 - Invariants: `single=true` ⇒ exactly 1 load; semaphore `peak ≤ permits`; Redis `distributed` ⇒ 1 load across both instances.
 - `compare_http.py`: single-flight, pool bound, real DB pool endpoint (all editions).
-- Probes: `correctness` (stampede/pool, 10 / 5 repetitions), `redis` (5 rounds × 100 requests split over 2 instances per mode), `redis2` (stale read, invalidation, and an outage: 10 sequential + 50 concurrent requests while Redis is stopped and while it is paused, then time until Redis is used again).
-- The same `redis` / `redis2` probes run on all three editions (phases `v5-redis-*`).
+- Probes: `correctness` (stampede/pool, 10 / 5 repetitions), `redis` (5 rounds × 100 requests split over 2 instances per mode), `redis2` (stale read and invalidation), `outage` (§7.5: 3 outage kinds × 5 repetitions × 60 requests, recovery time).
+- The `redis`, `redis2` and `outage` probes run on all three editions (phases `v5-redis-*`, `v6-outage-*`).
 
 ## 6. Benchmark methodology
 
+> **Test machine (applies to every number in this lab):** one laptop, Intel Core i7-13700H (6 performance + 8 efficiency cores, 20 threads), 32 GB RAM, Windows 11 with Docker in WSL2. Each backend container is limited to 4 CPUs and 2 GB unless stated; k6, MySQL and the mock upstream run on the same machine. CPU quotas on a hybrid-core laptop are not pinned cores, and power/thermal management can shift results, so treat absolute numbers as environment-specific and compare only rows measured the same way. Details: [report §2](../../reports/BENCHMARK_REPORT.md#2-environment-and-method).
+
 - Real pool: k6 constant arrival 100 and 300 req/s, 30 s, pool 5 and 20, 4 CPUs. Capacity: 5 / 30 ms ≈ 166 req/s, 20 / 30 ms ≈ 666 req/s.
 - Redis hit latency: k6 2,000 req/s on `/lab/redis/product/42` vs the in-process cache `/api/products/42`, 3 repetitions per client (Jakarta: 5, of which runs 1–2 are WildFly warm-up and excluded; the in-process WildFly baseline also needs a warm-up run).
-- Outage: `docker stop` (container gone, the name `redis` no longer resolves) and `docker pause` (TCP connections stay open, Redis does not answer). All three clients use 500 ms timeouts, so differences come from client behaviour, not configuration.
+- Outage: `docker stop`, `docker pause` and killing only the Redis process (§7.5), 5 repetitions each, for every client and for one alternative setting per client (Lettuce `REJECT_COMMANDS`, Jedis JVM DNS cache, StackExchange.Redis heartbeat 500 / 100 ms). Timeouts are 500 ms in all clients, but their meaning differs (§4.1).
+- Hit latency is an **end-to-end** measurement (framework + JSON + client + Redis). It does not isolate the client; outage behaviour is mostly client-specific.
 
 ## 7. Results
 
@@ -121,20 +160,123 @@ The consistency results were the same on all three editions in the v5 runs (stal
 
 Fallbacks to MySQL during the k6 runs of the `v5-redis-*` phases (warm-up included): Lettuce 133, Jedis pool 8 263, Jedis pool 64 0, StackExchange.Redis 0. Lettuce's fallbacks happened outside the measured runs (measured max 437 ms, while a fallback takes > 500 ms).
 
-<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab08-redis-outage-dark.svg"><img alt="Left: milliseconds per request while Redis is stopped or paused: Lettuce about 507, Jedis 4 when stopped and 508 when paused, Jedis without the negative DNS cache about 512, StackExchange.Redis about 1,000. Right: time until Redis is used again after restart: Lettuce 961 ms, Jedis 9,532 ms, Jedis without negative DNS cache 10 ms, StackExchange.Redis 726 ms." src="../../docs/images/lab08-redis-outage-light.svg"></picture>
+Source: [172412Z](../../reports/http-runs/20261127T172412Z/REPORT.md) (`v5-redis-*`), [174040Z](../../reports/http-runs/20261127T174040Z/REPORT.md) (`v5b-redis-*`, Jedis repetitions). The single outage run of these phases is superseded by §7.5.
 
-**Outage** — every request still succeeded from MySQL (`source: db-fallback`) and the catalogue API was unaffected on all editions. Latency: median of 10 sequential requests [first request]; recovery: time from `docker start` / `docker unpause` until a request is served from Redis again.
+### 7.5 Redis outages
 
-| Client | stopped: latency | exception | recovery | paused: latency | exception | recovery |
-|---|---|---|---:|---|---|---:|
-| Lettuce | 507 ms [506] | `QueryTimeoutException` | 961 ms | 509 ms [531] | `QueryTimeoutException` | 6 ms |
-| Jedis | **4 ms** [2,768] | `JedisConnectionException` | **9,532 ms** | 508 ms [1,013] | `JedisConnectionException` | 23 ms |
-| Jedis, `sun.net.inetaddr.negative.ttl=0` | 513 ms [512] | `JedisConnectionException` | **10 ms** | 511 ms [1,032] | `JedisConnectionException` | 10 ms |
-| StackExchange.Redis | **1,000 ms** [612] | `RedisConnectionException` | 726 ms | **999 ms** [729] | `RedisTimeoutException` | 945 ms |
+Three ways Redis can disappear, each repeated **5 times per client setting**. In every repetition: 10 sequential and 50 concurrent requests while Redis is down, then the restore command, then a request every 50 ms until one is served from Redis again (**recovery time**). All 3 × 5 × 60 requests per setting were answered from MySQL (`source: db-fallback`, 0 HTTP errors) and the catalogue API stayed available.
 
-50 concurrent requests during the outage, p50: 538 / 35 / 576 / 984 ms (stopped) and 527 / 526 / 532 / 1,000 ms (paused), in table order.
+| Outage kind | how | name `redis` resolves? | new TCP connection | existing connections |
+|---|---|---|---|---|
+| **stopped** | `docker stop` / `start` | no: lookups fail (slowly, see below) | – | closed |
+| **paused** | `docker pause` / `unpause` | yes | not answered | stay open, no replies (like a network black hole) |
+| **process killed** | `redis-cli shutdown` / `redis-server` in the running container | yes | refused at once | closed |
 
-Sources: [172412Z](../../reports/http-runs/20261127T172412Z/REPORT.md) (`v5-redis-*`), [174040Z](../../reports/http-runs/20261127T174040Z/REPORT.md) (`v5b-redis-*`).
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab08-redis-outage-dark.svg"><img alt="Horizontal grouped bars: median milliseconds per request while Redis is down, for eight client settings and three outage kinds. Lettuce default about 512 everywhere; Lettuce REJECT_COMMANDS 25 stopped, 520 paused, 10 killed; Jedis about 510 stopped and paused and 8 killed, 2,305 stopped without a JVM DNS cache; StackExchange.Redis about 1,000 with heartbeat 1,000 or 500 ms and 600 with heartbeat 100 ms." src="../../docs/images/lab08-redis-outage-light.svg"></picture>
+
+**Latency per request while Redis is down** (ms, 5 × 10 sequential requests: median, p95, max)
+
+| Client, setting | stopped | paused | process killed |
+|---|---|---|---|
+| Lettuce, default (queue while disconnected) | 512 (p95 535, max 540) | 512 (p95 537, max 562) | 551 (p95 588, max 648) |
+| Lettuce, `REJECT_COMMANDS` | 25 (p95 269, max 707) | 520 (p95 545, max 557) | 10 (p95 21, max 27) |
+| Jedis, JVM DNS cache default | 513 (p95 540, max 2,862) | 510 (p95 1,012, max 1,014) | 8 (p95 26, max 31) |
+| Jedis, `networkaddress.cache.negative.ttl=0` | 517 (p95 2,316, max 2,765) | 512 (p95 1,014, max 1,015) | 9 (p95 22, max 29) |
+| Jedis, no JVM DNS cache | 2,305 (p95 2,742, max 2,757) | 511 (p95 1,012, max 1,022) | 9 (p95 21, max 31) |
+| StackExchange.Redis, heartbeat 1,000 ms (default) | 1,000 (p95 1,005, max 1,402) | 1,000 (p95 1,004, max 1,006) | 999 (p95 1,006, max 1,010) |
+| StackExchange.Redis, heartbeat 500 ms | 1,000 (p95 1,005, max 1,509) | 999 (p95 1,003, max 1,003) | 1,000 (p95 1,003, max 1,005) |
+| StackExchange.Redis, heartbeat 100 ms | 600 (p95 635, max 1,312) | 600 (p95 604, max 615) | 600 (p95 606, max 608) |
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab08-redis-recovery-dark.svg"><img alt="Horizontal grouped bars on a log scale: milliseconds until Redis is used again after the restore, for eight client settings and three outage kinds. Jedis about 115 ms with one 9.6 s outlier at the default DNS cache; Lettuce default 563 stopped and 3,083 killed; StackExchange.Redis 1,711 stopped with the default heartbeat and 315 with heartbeat 100 ms; paused recoveries are mostly under 30 ms." src="../../docs/images/lab08-redis-recovery-light.svg"></picture>
+
+**Recovery** (ms from the restore command until a request is served from Redis, 5 runs: median [min – max])
+
+| Client, setting | stopped | paused | process killed |
+|---|---|---|---|
+| Lettuce, default (queue while disconnected) | 563 [471 – 1,079] | 11 [8 – 28] | 3,083 [953 – 7,862] |
+| Lettuce, `REJECT_COMMANDS` | 243 [195 – 578] | 18 [11 – 53] | 242 [174 – 277] |
+| Jedis, JVM DNS cache default | 115 [113 – 9,578] | 16 [8 – 25] | 112 [111 – 128] |
+| Jedis, `networkaddress.cache.negative.ttl=0` | 116 [112 – 122] | 11 [9 – 27] | 115 [113 – 118] |
+| Jedis, no JVM DNS cache | 114 [114 – 135] | 10 [9 – 11] | 115 [114 – 130] |
+| StackExchange.Redis, heartbeat 1,000 ms (default) | 1,711 [760 – 1,773] | 16 [6 – 853] | 995 [905 – 1,016] |
+| StackExchange.Redis, heartbeat 500 ms | 791 [197 – 1,308] | 367 [6 – 373] | 446 [420 – 1,357] |
+| StackExchange.Redis, heartbeat 100 ms | 315 [186 – 398] | 6 [4 – 17] | 226 [185 – 533] |
+
+**Other measurements** (DB queries: each fallback is one MySQL query; recovery polls that fell back are included)
+
+| Client, setting | 50 concurrent: median / max ms (stopped · paused · killed) | exceptions | HTTP errors | DB queries per kind (300 requests + recovery polls) | Redis clients after recovery |
+|---|---|---|---:|---|---|
+| Lettuce, default (queue while disconnected) | 544 / 659 · 550 / 646 · 610 / 905 | `QueryTimeoutException` | 0% | 302 · 300 · 329 | 2 |
+| Lettuce, `REJECT_COMMANDS` | 143 / 748 · 558 / 597 · 53 / 124 | `QueryTimeoutException`, `RedisSystemException` | 0% | 314 · 300 · 308 | 2 |
+| Jedis, JVM DNS cache default | 538 / 1,048 · 536 / 1,053 · 48 / 136 | `JedisConnectionException`, `JedisException` | 0% | 450 · 300 · 300 | 2 |
+| Jedis, `networkaddress.cache.negative.ttl=0` | 546 / 18,521 · 546 / 1,040 · 54 / 113 | `JedisConnectionException`, `JedisException` | 0% | 300 · 300 · 300 | 2 |
+| Jedis, no JVM DNS cache | 542 / 18,562 · 538 / 1,036 · 56 / 118 | `JedisConnectionException`, `JedisException` | 0% | 300 · 300 · 300 | 2 |
+| StackExchange.Redis, heartbeat 1,000 ms (default) | 982 / 1,097 · 977 / 1,000 · 982 / 1,558 | `RedisConnectionException`, `RedisTimeoutException` | 0% | 308 · 301 · 305 | 3 |
+| StackExchange.Redis, heartbeat 500 ms | 988 / 1,076 · 985 / 1,008 · 990 / 1,064 | `RedisConnectionException`, `RedisTimeoutException` | 0% | 304 · 300 · 302 | 2–3 |
+| StackExchange.Redis, heartbeat 100 ms | 662 / 1,172 · 584 / 605 · 601 / 671 | `RedisConnectionException`, `RedisTimeoutException` | 0% | 300 · 300 · 300 | 2–3 |
+
+Sources: [201204Z](../../reports/http-runs/20261127T201204Z/REPORT.md) (`v6-outage-*`), [203811Z](../../reports/http-runs/20261127T203811Z/REPORT.md) (`v6b-outage-*`). The phase `v6-outage-jakarta-dns0` is kept in the raw data but is **not** a valid A/B (see below).
+
+#### How each client behaves
+
+**Lettuce (Spring).** One connection; while Lettuce *knows* it is disconnected, the default queues commands until the reconnect or the 500 ms timeout. `REJECT_COMMANDS` fails them at once instead (10–25 ms). It does not help when Redis is paused: the TCP connection still looks healthy, so commands are sent and time out.
+
+```mermaid
+flowchart LR
+  req[request] --> st{connection state known to Lettuce}
+  st -- connected --> send[send command] --> w{reply within 500 ms}
+  w -- yes --> ok[served from Redis]
+  w -- no --> to[QueryTimeoutException after 500 ms] --> fb[DB fallback]
+  st -- disconnected --> mode{DisconnectedBehavior}
+  mode -- "default: queue" --> q[wait for reconnect] --> to
+  mode -- REJECT_COMMANDS --> rej[fails at once, 10 to 25 ms] --> fb
+```
+
+**Jedis (Jakarta).** No queue: every failed command means a new connection attempt, so the JVM's DNS cache decides what happens when the container is stopped.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant J as Jedis, new connection
+  participant C as JVM DNS cache
+  participant D as Docker DNS
+  participant R as Redis
+  Note over R: docker stop, container and DNS name gone
+  J->>C: resolve redis
+  alt usual case: address still cached (30 s positive TTL)
+    C-->>J: old IP address
+    J->>R: TCP connect to the old address
+    Note over J,R: no answer, 500 ms connect timeout, DB fallback
+  else cached address expired during the outage
+    C->>D: lookup redis
+    D-->>C: not found, after about 2.3 to 2.8 s
+    C-->>J: failure, cached for 10 s (negative TTL)
+    Note over J: following requests fail in a few ms from the cache
+  end
+  Note over R: docker start, same address again
+  J->>C: resolve redis
+  C-->>J: old address, or the cached failure until it expires
+  Note over J,R: recovery about 115 ms, or about 9.5 s after a cached failure
+```
+
+**StackExchange.Redis (.NET).** Commands wait in the backlog while the connection is unhealthy, and the client checks timeouts only on its heartbeat. A request therefore waits until the first heartbeat after the 500 ms timeout has passed.
+
+```mermaid
+sequenceDiagram
+  participant Q as request
+  participant M as multiplexer backlog
+  participant H as heartbeat timer
+  Note over M: Redis down, command queued (BacklogPolicy.Default)
+  Q->>M: GET at t = 0
+  Note over M: t = 500 ms, AsyncTimeout reached, nobody checks yet
+  H->>M: next heartbeat checks timeouts
+  M-->>Q: timeout or connection exception, DB fallback
+  Note over Q,H: measured: heartbeat 1,000 ms gives 1,000 ms, 500 ms gives 1,000 ms, 100 ms gives 600 ms
+```
+
+#### Correction: what the first single outage run got wrong
+
+The first outage run (v5, one repetition) reported Jedis failing in 4 ms with a 9.5 s recovery and called the JVM negative DNS cache a *confirmed* cause, based on a v5b run with `-Dsun.net.inetaddr.negative.ttl=0`. Both were wrong in a way repetition exposed: (1) the 4 ms / 9.5 s pattern is the **occasional** path (1 of 5 repetitions); the usual path is ~510 ms per request and ~115 ms recovery; (2) that system property has **no effect** here, because the JDK's `java.security` sets `networkaddress.cache.negative.ttl=10` itself and the security property wins (checked with `java -XshowSettings:security:properties`). The v6b runs set the security property through `-Djava.security.properties`, which works.
 
 ## 8. Interpretation and trade-offs
 
@@ -144,16 +286,20 @@ Sources: [172412Z](../../reports/http-runs/20261127T172412Z/REPORT.md) (`v5-redi
 3. All three pools delivered ≈ 160 successful req/s at pool 5, as Little's law predicts (166). They differ in *how* they fail: .NET fails fast (async waiters, 1 s timeout), WildFly queues for up to 30 s (no errors, multi-second latency), Spring fails after 1 s but also queues in Tomcat.
 4. Redis costs a network hop and CPU (p50 1.0 vs 0.54 ms) and returns stale data until invalidated.
 5. **Hit latency hardly depends on the client.** Lettuce and StackExchange.Redis add 0.4–0.8 ms at p50; Jedis adds 1–2.5 ms. The tail follows the framework: WildFly's p99 is 186 ms already without Redis. A Jedis pool of 8 instead of 64 made no measurable steady-state difference (overlapping ranges), but under the overload of the first runs pool 8 sent 263 requests to MySQL because no connection was free within 500 ms; pool 64 sent none.
-6. **The clients differ when Redis fails** (confirmed causes unless marked):
-   - *Lettuce* keeps one connection and queues commands while it reconnects, so every request waits for the full 500 ms timeout in both outage types. It recovered within 1 s of the restart.
-   - *Jedis* opens a new connection for each attempt. When the container is stopped, the name `redis` no longer resolves; the JVM caches that failed lookup for 10 s (`networkaddress.cache.negative.ttl`). That made failures fast (4 ms after the first) but recovery slow (9.5 s). With the negative cache disabled, recovery took 10 ms and each failure took ~510 ms instead, confirmed by the `v5b-redis-jakarta-dns0` A/B run. Why the first failing request took 2.8 s is not explained.
-   - *StackExchange.Redis* needed ~1,000 ms per request with a 500 ms timeout in both outage types, and 0.7–0.9 s to recover. **Hypothesis, not verified:** the client checks timeouts and reconnects on a 1-second heartbeat, so the effective timeout is rounded up to the next tick.
+6. **The clients differ when Redis fails, and the outage kind matters as much as the client.** Same 500 ms settings, median per request: Lettuce ~510 ms in every kind; Jedis ~510 ms (stopped, paused) but 8 ms (refused); StackExchange.Redis ~1,000 ms in every kind.
+   - *Lettuce queues commands while disconnected* (documented default) — **confirmed** by A/B: `REJECT_COMMANDS` cuts stopped/killed to 10–25 ms, and leaves paused unchanged because Lettuce cannot tell that the open connection is dead.
+   - *Lettuce's slow recovery after a killed process* (median 3.1 s, up to 7.9 s, vs 0.24 s with `REJECT_COMMANDS`) — **hypothesis**: refused connections fail instantly, so the exponential reconnect back-off (capped at 30 s) grows fastest, and queued requests keep the outage longer. Not traced in Lettuce.
+   - *Jedis and the JVM DNS cache* — **confirmed** by A/B: the 9.5 s recovery appears only when a failed lookup is cached (1 of 5 runs with the default, 0 of 10 with negative TTL 0 or no cache). The usual ~510 ms is a TCP connect to the cached old address. Without any JVM DNS cache every request pays the failing lookup (2.3–2.8 s).
+   - *Why a lookup of a stopped container's name takes 2.3–2.8 s* — **hypothesis**: Docker's embedded DNS forwards unknown names to the host resolver (WSL2 / Windows here). Environment-specific. With 50 concurrent requests the failing lookups queued up to 18.5 s (also not traced).
+   - *StackExchange.Redis waits for its heartbeat* — **confirmed** by A/B: heartbeat 100 ms brings the latency down from 1,000 to 600 ms and the stopped-Redis recovery from 1.7 s to 0.3 s. The exact rounding (500 ms heartbeat still gave 1,000 ms) is not established. A shorter heartbeat means more timer work; the client's documentation advises against changing it for most uses.
+   - *Paused Redis* is the hardest case for every client: no client can distinguish "slow" from "dead" before its timeout, so all pay ≥ 500 ms per request; only the recovery is fast (the connection is still there).
 
 **Conclusions**
 - Protect expensive loads with single-flight; in a cluster, decide whether one load per instance is acceptable or a shared lock is needed.
 - Size pools from hold time × target throughput, and choose a timeout that fails fast enough to protect the threads.
 - A shared cache needs an invalidation story and a fail-open/closed decision. Fail-open keeps availability but removes stampede protection exactly when Redis is down.
-- Measure the client's failure behaviour, not only its hit latency: the configured timeout is not the latency users see during an outage (StackExchange.Redis: 2×), and DNS caching can trade fast failure for slow recovery (Jedis on the JVM).
+- Measure the client's failure behaviour, not only its hit latency: "500 ms timeout" produced 8 ms, 510 ms, 600 ms, 1,000 ms or 2.3 s per request depending on client, setting and outage kind; DNS caching can trade fast failure for slow recovery.
+- Fail-open moves the load to the database. Here that was 300 extra MySQL queries per 300 requests; at production rates a Redis outage can overload the database. Production systems usually add a circuit breaker, bounded concurrency or a local fallback cache — described here as a trade-off, not implemented or measured.
 - With a pooled client, size the pool for the peak concurrency of Redis calls, or fallbacks start before Redis is actually slow.
 
 ## 9. Limitations
@@ -162,7 +308,8 @@ Sources: [172412Z](../../reports/http-runs/20261127T172412Z/REPORT.md) (`v5-redi
 - Two instances share one MySQL journal; the catalogue normally assumes a single refresh consumer.
 - No Redis cluster, replication or eviction-policy experiments.
 - One client per edition, default settings except the 500 ms timeouts (and the Jedis pool size); Redisson, Lettuce on Jakarta or other StackExchange.Redis heartbeat settings were not tried. For hit latency the client is therefore confounded with the framework (compare the in-process baselines).
-- The outage probe ran once per client (10 + 50 requests per outage type), not repeated.
+- Outage probes: 5 repetitions per setting, on one machine, with Docker-specific failure modes (container stop, pause, process kill). A real network partition or a Redis failover in a managed service may behave differently; recovery times include the 50 ms polling interval.
+- Distributed-lock results (1 load per round) hold for the tested case only: lock holder healthy, lease (3 s) longer than the load (100 ms). Lease expiry during a slow load, a crashed holder or a network partition were not tested; the GET + DEL release without a fencing token is not safe in those cases.
 - The WildFly pool timeout was left at its default because `@DataSourceDefinition` has no standard attribute for it.
 
 ## 10. Use cases and interview questions
@@ -171,5 +318,6 @@ Sources: [172412Z](../../reports/http-runs/20261127T172412Z/REPORT.md) (`v5-redi
 - *How do you stop a cache stampede?* Single-flight, plus early refresh or stale-while-revalidate; across instances a shared lock or a coalescing proxy.
 - *What happens when the pool is exhausted?* It depends on the timeout and the thread model (§7.2).
 - *What does Redis give and cost?* Shared state across instances; a hop, staleness, a new dependency and failure mode.
-- *Your Redis timeout is 500 ms. How long do requests take while Redis is down?* It depends on the client: 500 ms (Lettuce), 4 ms or 500 ms depending on DNS caching (Jedis), ~1 s (StackExchange.Redis); see §7.4.
+- *Your Redis timeout is 500 ms. How long do requests take while Redis is down?* It depends on the client and on how Redis fails: ~510 ms for Lettuce (10–25 ms with `REJECT_COMMANDS` unless the connection hangs), 8–510 ms for Jedis (2.3 s without a JVM DNS cache), ~1,000 ms for StackExchange.Redis because timeouts are checked on the 1 s heartbeat; see §7.5.
+- *Why does a JVM service sometimes need ~10 s to reconnect after a dependency comes back?* The JVM caches failed DNS lookups (`networkaddress.cache.negative.ttl`, 10 s by default, set in `java.security`, so `-Dsun.net.inetaddr.negative.ttl` does not change it).
 - *Multiplexed or pooled client?* A multiplexed client (Lettuce, StackExchange.Redis) needs no pool sizing; a pooled one (Jedis) must be sized for peak concurrency or requests wait for a connection.

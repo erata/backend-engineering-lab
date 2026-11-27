@@ -81,6 +81,8 @@ sequenceDiagram
 
 ## 6. Benchmark methodology
 
+> **Test machine (applies to every number in this lab):** one laptop, Intel Core i7-13700H (6 performance + 8 efficiency cores, 20 threads), 32 GB RAM, Windows 11 with Docker in WSL2. Each backend container is limited to 4 CPUs and 2 GB unless stated; k6, MySQL and the mock upstream run on the same machine. CPU quotas on a hybrid-core laptop are not pinned cores, and power/thermal management can shift results, so treat absolute numbers as environment-specific and compare only rows measured the same way. Details: [report §2](../../reports/BENCHMARK_REPORT.md#2-environment-and-method).
+
 k6, 200 req/s, 30 s, every request updates **the same product id 7** (deliberately a hot row), 4 CPUs. Spring `direct`/`event` were repeated 5×; `event-inline` ran in its own phase (it freezes the app).
 
 ## 7. Results

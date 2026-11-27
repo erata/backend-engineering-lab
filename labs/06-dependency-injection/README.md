@@ -51,6 +51,8 @@ Not ported artificially: Spring has no "scoped resolved from root" problem, beca
 
 ## 5. Benchmark methodology
 
+> **Test machine (applies to every number in this lab):** one laptop, Intel Core i7-13700H (6 performance + 8 efficiency cores, 20 threads), 32 GB RAM, Windows 11 with Docker in WSL2. Each backend container is limited to 4 CPUs and 2 GB unless stated; k6, MySQL and the mock upstream run on the same machine. CPU quotas on a hybrid-core laptop are not pinned cores, and power/thermal management can shift results, so treat absolute numbers as environment-specific and compare only rows measured the same way. Details: [report §2](../../reports/BENCHMARK_REPORT.md#2-environment-and-method).
+
 Only the payload-lifetime case has a load test: k6 at 50 req/s for 30 s per mode, 4 CPUs, one `docker stats` CPU sample per run. Every `request` call builds the full payload (Java: 100K `Product` records; .NET: `string[100000]`).
 
 ## 6. Results
