@@ -59,7 +59,7 @@ These are **indicative measurements of these lab implementations on one workstat
 
 | Strategy (JMH, 100K) | read-only ops/s | mixed: reader ops/s | mixed: writer batches/s |
 |---|---:|---:|---:|
-| synchronized | 4.62 M ± 0.46 M | 1.49 M | 902 K |
+| synchronized | 4.61 M ± 0.46 M | 1.49 M | 902 K |
 | concurrent | 62.8 M ± 4.8 M | 34.3 M | 615 K |
 | **snapshot** | **88.1 M ± 7.2 M** | **43.0 M** | **33.4** |
 | caffeine | 48.0 M ± 17.3 M | 43.2 M | 626 K |
@@ -86,7 +86,7 @@ Paging (50 req/s): Spring p50 6.2 ms, Jakarta 8.5 ms, .NET 47.4 ms (261 % CPU). 
 |---|---|---|---|
 | Spring Boot | 605.8 [605.7 – 607.1] | 605.6 [605.5 – 605.8] | 303.1 [302.7 – 303.4] |
 | Jakarta EE | 606.8 [605.8 – 607.6] | 605.8 [605.3 – 607.1] | 303.0 [303.0 – 303.0] |
-| ASP.NET Core 10 | sync-over-async: run 1 84.6 % failed; runs 2–5 604.5 | 604.1 [604.1 – 604.2] | 302.1 [302.0 – 302.1] |
+| ASP.NET Core 10 | sync-over-async: run 1 84.6 % failed; runs 2–5 604.5 | 604.1 [604.1 – 604.2] | 302.0 [302.0 – 302.1] |
 
 ### 3.4 Lab 04 — threads and runtimes, 400 req/s ([details](../labs/04-virtual-threads/README.md))
 
@@ -141,11 +141,34 @@ Stampede, 100 requests: in-process 32 / 8 / 100 loads without coordination, 1 wi
 
 ---
 
-## 4. Defects found by benchmarking
+## 4. Status of explanations
+
+Every result above is a **measured observation**. This table classifies the *explanations* given in the lab documents.
+
+| Finding | Status | Basis |
+|---|---|---|
+| Threaded mock upstream made virtual threads look slower (F8) | **confirmed root cause** | A/B tests: old and new app code identical; asyncio mock removes the effect ([investigation 1](investigations/2026-11-27-anomalies.md)) |
+| WildFly virtual executor capped by a semaphore (F9) | **confirmed root cause** | thread dump of 346 virtual threads in `VirtualThreadsManagedFutureTask`; `maxAsync` fixes it |
+| Hikari deadlock with `AFTER_COMMIT` + `REQUIRES_NEW` (F4) | **confirmed root cause** | thread dump `active=10, waiting=198`; async listener fixes it |
+| JAX-RS routing hid stampede/pool on Jakarta (F14) | **confirmed root cause** | 404 reproduced, fixed, re-verified from a fresh clone |
+| JDK 21 pinning in `synchronized`, removed in JDK 24+ | **confirmed** | measured 1,254.5 ms vs theory 1,250 ms; 51 ms on JDK 25 |
+| Jakarta after-commit audits delayed by a shared executor | **confirmed** (delay) | controlled test: 0 audits for 120 s, all 100 at 130 s |
+| … and lost when the process stops | **consistent with the design, not directly observed** | audits missing after the container was stopped; in-memory queue |
+| .NET sync-over-async bistable because the ThreadPool keeps injected threads | **hypothesis** | run order pattern (run 1 fails, later runs pass); not traced in the runtime |
+| Hot-row collapse caused by row-lock hold time | **hypothesis** (well supported) | same SQL in both modes, only lock hold time differs; InnoDB lock waits not monitored |
+| 8 workers beat 4 under a 4-CPU quota because the quota is time, not cores | **hypothesis** | CFS semantics; `cpu.stat` not captured for those runs |
+| .NET per-request payload p95 caused by LOH / gen-2 GCs | **hypothesis** | GC design; no GC log captured |
+| WildFly default executor size ≈ 2 × CPUs | **observation** | 8 tasks at 4 CPUs, 40 at 20 CPUs; default not read from the source |
+| Inline after-commit pattern does not deadlock on WildFly | **hypothesis** | JTA connection handling; not verified in WildFly code |
+| Jakarta `direct` handles the hot row better than Spring and .NET | **unresolved** | measured once (p50 14.5 ms) |
+| Why run 1 virtual threads were not affected by the threaded mock | **unresolved** | – |
+| WildFly needs more CPU per catalogue request | **unresolved** | not profiled |
+| .NET client-span count 17 instead of 15 | **unresolved** | – |
+## 5. Defects found by benchmarking
 
 Benchmarks and probes found defects that unit tests had missed. All are fixed and listed in [VALIDATION_STATUS.md](../docs/VALIDATION_STATUS.md): the Hikari deadlock (F4), CDI proxy defects (F2, F3), the bounded WildFly virtual executor (F9), a JAX-RS routing defect found by the clean-checkout test (F14), and harness defects that would otherwise have been reported as backend results (F6 Nagle, F8 threaded mock, suite spill-over, IPv6 `localhost` delays, host standby).
 
-## 5. Limitations
+## 6. Limitations
 
 - One workstation; up to 5 repetitions per configuration; single `docker stats` CPU samples. Treat differences below ~20 % as noise unless a repetition range shows otherwise.
 - Docker CPU quotas on a hybrid-core laptop are not pinned cores. k6, the mock and MySQL share the host.

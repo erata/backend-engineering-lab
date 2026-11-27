@@ -20,7 +20,7 @@ All five sequential cache contracts should agree. The unsafe map is expected to 
 
 In the dependency-free offline run, four cache variants loaded 100,000 records, returned deterministic pagination, filtered by name and applied null-timestamp inserts, updates and deletes. The locked and snapshot variants passed the concurrent atomic-page checks. The concurrent map passed individual-record and final-state checks. A controlled structural modification invalidated an unsafe iterator. A two-worker counter experiment produced unsafe=1, locked=2, atomic=2, with expected count=2. See [raw output](../../reports/OFFLINE_CHECKS.txt).
 
-That offline subset was originally run on Java 21 only. On 2026-11-26 the full set was executed on JDK 25: Maven unit tests (12/12, Caffeine included), the MySQL/Testcontainers integration test with journal and late commit (1/1), the HTTP contract on all three editions, and JMH plus k6 benchmarks. Measured results and their interpretation are in the [Lab 01 README](README.md#7-measured-results). They confirm the hypotheses below: the snapshot has the cheapest reads and the most expensive batches.
+That offline subset was originally run on Java 21 only. On 2026-11-26 the full set was executed on JDK 25: Maven unit tests (12/12, Caffeine included), the MySQL/Testcontainers integration test with journal and late commit (1/1), the HTTP contract on all three editions, and JMH plus k6 benchmarks. Measured results and their interpretation are in the [Lab 01 README](README.md#7-results). They confirm the hypotheses below: the snapshot has the cheapest reads and the most expensive batches.
 
 ## Why choose snapshot as default?
 

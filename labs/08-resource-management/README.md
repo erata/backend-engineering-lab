@@ -31,7 +31,7 @@ sequenceDiagram
   A->>R: SET lab:lock:42 NX PX 3000 → OK (leader)
   B->>R: SET lab:lock:42 NX PX 3000 → nil (follower)
   A->>DB: SELECT … (+100 ms)
-  A->>R: SET lab:product:42 (TTL 30 s); DEL lock
+  A->>R: SET lab:product:42 (TTL 30 s), DEL lock
   B->>R: poll GET every 10 ms → value
 ```
 
@@ -41,7 +41,7 @@ sequenceDiagram
 |---|---|---|
 | in-process stampede | `Experiments.stampede` ([Java](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/experiments/Experiments.java)), `Lab.Stampede` ([.NET](../../implementations/aspnet-core/Lab.Api/Program.cs)) | `single=false` → `single=true` (double-checked load under a lock / `SemaphoreSlim`) |
 | semaphore "pool" | `Experiments.pool`, `Lab.Pool` | models 5 permits, 30 ms work, 100 ms wait budget |
-| **real connection pool** | [DbPoolController](../../implementations/spring-boot/app/src/main/java/de/backendlab/labs/DbPoolController.java) (Hikari), [DbPoolResource](../../implementations/jakarta-ee/src/main/java/de/backendlab/ee/DbPoolResource.java) (WildFly `@DataSourceDefinition`), `/lab/resources/db` (MySqlConnector) | pool 5 vs 20; each request holds a connection for `SELECT SLEEP(0.03)` |
+| **real connection pool** | [DbPoolController](../../implementations/spring-boot/app/src/main/java/de/backendlab/labs/DbPoolController.java) (Hikari), [Endpoints](../../implementations/jakarta-ee/src/main/java/de/backendlab/ee/Endpoints.java) `db()` (WildFly `@DataSourceDefinition`), `/lab/resources/db` (MySqlConnector) | pool 5 vs 20; each request holds a connection for `SELECT SLEEP(0.03)` |
 | **Redis shared cache, 2 instances** | [RedisCacheController](../../implementations/spring-boot/app/src/main/java/de/backendlab/labs/RedisCacheController.java), [docker-compose.redis.yml](../../docker-compose.redis.yml) | `mode=none` → `local` (per-instance single-flight) → `distributed` (Redis lock) |
 | Redis TTL demo | [tools/redis_lab.py](../../tools/redis_lab.py) | standalone two-client TTL check, **not** a cache implementation |
 

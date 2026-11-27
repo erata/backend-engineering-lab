@@ -77,7 +77,7 @@ Change detection: `journal` (default, correct), `watermark` (deliberately limite
 
 | Strategy | read-only ops/s (± 99.9 % CI) | alloc B/op | mixed: reader ops/s | mixed: writer batches/s | GC time in mixed run |
 |---|---:|---:|---:|---:|---:|
-| synchronized | 4.62 M ± 0.46 M | 40 | 1.49 M | 902 K | 16 ms |
+| synchronized | 4.61 M ± 0.46 M | 40 | 1.49 M | 902 K | 16 ms |
 | concurrent | 62.8 M ± 4.8 M | 40 | 34.3 M | 615 K | 122 ms |
 | **snapshot** | **88.1 M ± 7.2 M** | 16 | **43.0 M** | **33.4** | **2,163 ms** |
 | caffeine | 48.0 M ± 17.3 M | 40 | 43.2 M | 626 K | 114 ms |

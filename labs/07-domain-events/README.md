@@ -24,18 +24,18 @@ sequenceDiagram
   participant DB as MySQL
   participant L as Listener / dispatcher
   C->>S: POST price-change
-  S->>DB: BEGIN; UPDATE lab_prices (row lock)
+  S->>DB: BEGIN, UPDATE lab_prices (row lock)
   alt direct
     S->>DB: INSERT lab_price_audit
     S->>DB: COMMIT (lock released)
   else event (Spring / Jakarta)
     S->>DB: COMMIT (lock released)
     S-->>L: after-commit event (async executor)
-    L->>DB: BEGIN; INSERT audit; COMMIT (2nd connection)
+    L->>DB: BEGIN, INSERT audit, COMMIT (2nd connection)
   else event (.NET outbox)
     S->>DB: INSERT lab_outbox
     S->>DB: COMMIT (lock released)
-    L->>DB: SELECT … FOR UPDATE SKIP LOCKED; INSERT audit; DELETE outbox; COMMIT
+    L->>DB: SELECT … FOR UPDATE SKIP LOCKED, INSERT audit, DELETE outbox, COMMIT
   end
   S-->>C: 200
 ```

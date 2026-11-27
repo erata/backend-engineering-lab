@@ -6,7 +6,7 @@ An independently runnable, cross-framework engineering laboratory. Three impleme
 
 > **Release status (2026-11-27): built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Fourteen defects found during validation were fixed, and a clean-checkout reproduction passed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
 >
-> **Results:** [Consolidated benchmark report](reports/BENCHMARK_REPORT.md) · [Benchmark guide](docs/BENCHMARKS.md)
+> **Results:** [Consolidated benchmark report](reports/BENCHMARK_REPORT.md) · [Benchmark guide](docs/BENCHMARKS.md) · [Release notes](RELEASE_NOTES.md)
 
 ## 1. The originating problem
 
@@ -197,7 +197,7 @@ Redis is used for a real two-instance shared-cache experiment in Lab 08 (`docker
 ## 10. Out of scope and limitations
 
 - Out of scope: public deployment, authentication, UI, Kubernetes, message brokers, distributed transactions, CDC, multi-consumer journal offsets, production disaster recovery.
-- No universal performance ranking: one workstation, Docker CPU quotas, headline comparisons repeated 3–5 times, others single runs ([report](reports/BENCHMARK_REPORT.md) §5).
+- No universal performance ranking: one workstation, Docker CPU quotas, headline comparisons repeated 3–5 times, others single runs ([report](reports/BENCHMARK_REPORT.md) §6).
 - Deliberate scope limits: the transactional outbox exists in .NET only; Redis shared caching in Spring only; no ORM, so no DbContext/EntityManager lifecycle; Redis lock without fencing tokens.
 - Open, unexplained observations and every remaining gap are listed in the [completion matrix](docs/ROADMAP.md).
 - Lab endpoints are local-only and unauthenticated; never deploy the negative modes (`unsafe`, `event-inline`, singleton user holder).

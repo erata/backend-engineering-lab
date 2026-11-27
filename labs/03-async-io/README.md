@@ -71,7 +71,7 @@ k6 constant arrival rate, 50 req/s for 30 s per mode, 4 CPUs per backend. 50 req
 |---|---|---|---|
 | Spring Boot (Java 25) | 605.8 [605.7 – 607.1] | 605.6 [605.5 – 605.8] | 303.1 [302.7 – 303.4] |
 | Jakarta EE | 606.8 [605.8 – 607.6] | 605.8 [605.3 – 607.1] | 303.0 [303.0 – 303.0] |
-| ASP.NET Core .NET 10 | sync-over-async: run 1 **84.6 % failed** (CPU 0.9 %), runs 2–5: 604.5 | 604.1 [604.1 – 604.2] | 302.1 [302.0 – 302.1] |
+| ASP.NET Core .NET 10 | sync-over-async: run 1 **84.6 % failed** (CPU 0.9 %), runs 2–5: 604.5 | 604.1 [604.1 – 604.2] | 302.0 [302.0 – 302.1] |
 | ASP.NET Core .NET 11 (3 runs) | – | 604.1 [603.8 – 604.1] | 302.0 [302.0 – 302.0] |
 
 p99 stays within 3–8 ms of p50 in every successful run. CPU at 50 req/s was 12–35 % of one core (single `docker stats` samples). An earlier single-run table with the old threaded mock ([20261126T222721Z](../../reports/http-runs/20261126T222721Z/REPORT.md)) agrees for all correct modes; there, .NET sync-over-async failed 100 %.
