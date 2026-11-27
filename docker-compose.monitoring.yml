@@ -13,7 +13,7 @@ services:
     command: ['-config.file=/etc/tempo.yml']
     volumes: ['./observability/tempo.yml:/etc/tempo.yml:ro']
   grafana:
-    image: grafana/grafana:12.1.1
+    image: grafana/grafana:12.4.16
     environment:
       GF_SECURITY_ADMIN_PASSWORD: local-grafana-password
     volumes:
