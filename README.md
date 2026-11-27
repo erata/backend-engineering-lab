@@ -225,4 +225,4 @@ Redis is used for a real two-instance shared-cache experiment in Lab 08 (`docker
 - [Validation status](docs/VALIDATION_STATUS.md)
 - [Historical v0.1 README](README_V01.md)
 
-Personal learning/reference lab. Report actual local measurements together with their environment and limitations. Do not present these experiments as previous employment experience.
+Licensed under the [MIT License](LICENSE). Personal learning/reference lab. Report actual local measurements together with their environment and limitations. Do not present these experiments as previous employment experience.
