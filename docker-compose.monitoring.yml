@@ -5,7 +5,7 @@ services:
     volumes: ['./observability/collector.yml:/etc/otelcol/config.yaml:ro']
     ports: ['127.0.0.1:4317:4317','127.0.0.1:4318:4318']
   prometheus:
-    image: prom/prometheus:v3.5.0
+    image: prom/prometheus:v3.16.0
     volumes: ['./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro']
     ports: ['127.0.0.1:9090:9090']
   tempo:
