@@ -1,5 +1,8 @@
 name: Build and correctness (Spring, Jakarta EE, .NET)
 on: [push, pull_request, workflow_dispatch]
+# Read-only token: the workflow only builds and tests (relevant once the repository is public and receives fork PRs).
+permissions:
+  contents: read
 jobs:
   spring:
     name: Spring Boot (Maven verify, JMH smoke, HTTP contract)
