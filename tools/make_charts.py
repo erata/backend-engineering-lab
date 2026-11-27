@@ -35,7 +35,7 @@ def v2_runs():
     out = []
     for d in sorted((ROOT / 'reports/http-runs').iterdir()):
         env = d / 'environment.json'
-        if env.exists() and any(p.startswith(('v2-', 'v3-', 'v4-', 'v5-', 'v5b-')) for p in json.loads(env.read_text()).get('phases', [])):
+        if env.exists() and any(p.startswith(('v2-', 'v3-', 'v4-', 'v5-', 'v5b-', 'v6-', 'v6b-')) for p in json.loads(env.read_text()).get('phases', [])):
             out.append(d)
     return out
 V2 = v2_runs()
@@ -349,21 +349,46 @@ def lab08_redis(t, mode):
           'p50: Redis adds 0.4–0.8 ms (Jedis 1–2.5 ms). p99 follows the framework: WildFly is slow without Redis too. Jakarta: runs 3–5.')
     save(fig, 'lab08-redis-hit', mode, top=0.72)
 
-    out = [('Lettuce\n(Spring)', v['v5-redis-spring']['redis2']), ('Jedis\n(Jakarta)', v['v5-redis-jakarta']['redis2']),
-           ('Jedis, DNS\nneg. cache off', v['v5b-redis-jakarta-dns0']['redis2']), ('StackExchange\n.Redis (.NET)', v['v5-redis-dotnet10']['redis2'])]
-    if any('error' in o or 'redis_stopped' not in o for _, o in out): return
-    fig, (a1, a2) = figure(t, w=9.2, h=3.6, ncols=2)
-    vals = {l: {'Redis stopped': o['redis_stopped']['sequential_10']['median_ms'], 'Redis paused': o['redis_paused']['sequential_10']['median_ms']} for l, o in out}
-    grouped_v(a1, t, list(vals), ['Redis stopped', 'Redis paused'], vals, lambda x: f'{x:.0f}', 'ms per request while Redis is down\n(median of 10; DB fallback)')
-    a1.axhline(500, color=t['ink2'], linewidth=1, linestyle=(0, (4, 3))); a1.set_ylim(0, 1250)
-    a1.tick_params(axis='x', labelsize=8); legend(a1, t, a1.get_legend_handles_labels(), loc='upper left')
-    rec = [max(o['redis_stopped']['recovery_ms_after_restore'] or 60000, 1) for _, o in out]
-    hbars(a2, t, [l for l, _ in out], rec, [t['series'][1], t['critical'], t['series'][2], t['series'][0]], lambda x: f'{x:,.0f} ms', xmax=max(rec) * 1.45)
-    a2.set_xlabel('time until Redis is used again\nafter the container is started (ms)', color=t['ink2']); a2.tick_params(axis='y', labelsize=8)
-    fig.subplots_adjust(wspace=0.45)
-    title(fig, t, 'Lab 08 · Redis outage: fallback latency and recovery, by client',
-          'All clients: 500 ms timeouts (dashed). Stopped = container gone, name not resolvable; paused = TCP open, no replies.')
-    save(fig, 'lab08-redis-outage', mode, top=0.76)
+    # Outage behaviour, 5 repetitions per outage kind (v6 / v6b). Bars: median, whiskers: min-max.
+    cfgs = [('Lettuce · default (queue)', 'v6-outage-spring-queue'), ('Lettuce · REJECT_COMMANDS', 'v6-outage-spring-reject'),
+            ('Jedis · JVM DNS cache default', 'v6-outage-jakarta'), ('Jedis · negative DNS TTL 0', 'v6b-outage-jakarta-neg0'),
+            ('Jedis · no JVM DNS cache', 'v6b-outage-jakarta-nocache'),
+            ('StackExchange.Redis · heartbeat 1,000 ms', 'v6-outage-dotnet-hb1000'), ('StackExchange.Redis · heartbeat 500 ms', 'v6-outage-dotnet-hb500'),
+            ('StackExchange.Redis · heartbeat 100 ms', 'v6-outage-dotnet-hb100')]
+    cfgs = [(l, v[p]['outage']) for l, p in cfgs if p in v and 'error' not in v[p].get('outage', {'error': 1})]
+    if len(cfgs) < 2: return
+    kinds = [('stop', 'stopped (DNS name gone)'), ('pause', 'paused (no replies)'), ('kill', 'process killed (refused)')]
+    cols = [t['series'][0], t['series'][1], t['series'][2]]
+    def hgroup(ax, getter, fmt, log=False):
+        n = len(kinds); h = 0.8 / n
+        for j, (k, lbl) in enumerate(kinds):
+            ys = [i + (j - (n - 1) / 2) * h for i in range(len(cfgs))]
+            med_, lo, hi = zip(*[getter(o[k]) for _, o in cfgs])
+            ax.barh(ys, med_, height=h, color=cols[j], edgecolor=t['surface'], linewidth=1.5, label=lbl,
+                    xerr=[[m - a for m, a in zip(med_, lo)], [b - m for m, b in zip(med_, hi)]], error_kw=dict(ecolor=t['ink2'], elinewidth=0.8, capsize=2))
+            for y, m, b in zip(ys, med_, hi):
+                ax.text(b * (1.15 if log else 1) + (0 if log else 25), y, fmt(m), va='center', color=t['ink'], fontsize=7)
+        ax.set_yticks(range(len(cfgs)), [l.replace(' · ', '\n', 1) for l, _ in cfgs]); ax.invert_yaxis(); ax.tick_params(axis='y', labelsize=8)
+        if log: ax.set_xscale('log'); ax.xaxis.set_major_formatter(FuncFormatter(lambda x, _: f'{x:,.0f}'))
+    fig, ax = figure(t, w=8.4, h=0.62 * len(cfgs) + 1.6)
+    hgroup(ax, lambda x: (x['sequential']['median_ms'], x['sequential']['min_ms'], x['sequential']['max_ms']), lambda m: f'{m:,.0f}')
+    ax.axvline(500, color=t['ink2'], linewidth=1, linestyle=(0, (4, 3))); ax.set_xlim(0, 3300)
+    ax.set_xlabel('ms per request while Redis is down (DB fallback), 5 × 10 sequential requests: median, whisker = min–max', color=t['ink2'])
+    lg = ax.legend(loc='lower right', frameon=False, fontsize=8)
+    for x in lg.get_texts(): x.set_color(t['ink2'])
+    title(fig, t, 'Lab 08 · Latency during a Redis outage, by client and setting',
+          'Every client is configured with 500 ms timeouts (dashed). What a request actually waits depends on the client and the outage kind.')
+    save(fig, 'lab08-redis-outage', mode, top=1 - 0.75 / (0.62 * len(cfgs) + 1.6))
+
+    fig, ax = figure(t, w=8.4, h=0.62 * len(cfgs) + 1.6)
+    hgroup(ax, lambda x: (x['recovery_ms']['median'], x['recovery_ms']['min'], x['recovery_ms']['max']), lambda m: f'{m:,.0f}', log=True)
+    ax.set_xlim(2, 60000)
+    ax.set_xlabel('ms from restore until a request is served from Redis again (log scale), 5 runs: median, whisker = min–max', color=t['ink2'])
+    lg = ax.legend(loc='lower right', frameon=False, fontsize=8)
+    for x in lg.get_texts(): x.set_color(t['ink2'])
+    title(fig, t, 'Lab 08 · Recovery after a Redis outage, by client and setting',
+          'Polled every 50 ms after the restore command returned. Long whiskers = an occasional slow path, not the typical case.')
+    save(fig, 'lab08-redis-recovery', mode, top=1 - 0.75 / (0.62 * len(cfgs) + 1.6))
 
 def repeatability(t, mode):
     v = phases(V2)

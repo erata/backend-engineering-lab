@@ -93,6 +93,22 @@ V2_PHASES = [
     phase('v5b-redis-jakarta-pool64-rep5', 'jakarta', {'REDIS_POOL_MAX': '64'}, REDIS_GET, [], repeat=5, extra_ports=[18084], title='Jakarta x2 + Redis (Jedis, pool 64), 5 repetitions'),
     phase('v5b-redis-jakarta-dns0', 'jakarta', {'LAB_JAVA_TOOL_OPTIONS': '-Dsun.net.inetaddr.negative.ttl=0'}, [], ['redis2'], extra_ports=[18084],
           title='Jakarta x2 + Redis (Jedis), JVM negative DNS cache off'),
+    # v6: outage behaviour, 5 repetitions x 3 outage kinds (stop / pause / process kill), plus one setting per client
+    # that the v5 explanations depend on: Lettuce disconnected behaviour, Jedis DNS cache, StackExchange.Redis heartbeat.
+    phase('v6-outage-spring-queue', 'spring', J25P, [], ['outage'], extra_ports=[18083], title='Lettuce, default (queue while disconnected)'),
+    phase('v6-outage-spring-reject', 'spring', {**J25P, 'LAB_REDIS_DISCONNECTED': 'reject'}, [], ['outage'], extra_ports=[18083], title='Lettuce, REJECT_COMMANDS'),
+    phase('v6-outage-jakarta', 'jakarta', {}, [], ['outage'], extra_ports=[18084], title='Jedis, default JVM DNS cache'),
+    # Invalid A/B kept for the record: the JDK's java.security sets networkaddress.cache.negative.ttl=10, so this
+    # system property is ignored (same for v5b-redis-jakarta-dns0). v6b sets the security property itself.
+    phase('v6-outage-jakarta-dns0', 'jakarta', {'LAB_JAVA_TOOL_OPTIONS': '-Dsun.net.inetaddr.negative.ttl=0'}, [], ['outage'], extra_ports=[18084],
+          title='Jedis, sun.net.inetaddr.negative.ttl=0 (ignored by the JDK, see v6b)'),
+    *[phase(f'v6-outage-dotnet-hb{hb}', 'dotnet', {'DOTNET_VERSION': '10.0', 'REDIS_HEARTBEAT_MS': str(hb)}, [], ['outage'], extra_ports=[18085],
+            title=f'StackExchange.Redis, heartbeat {hb} ms') for hb in (1000, 500, 100)],
+    # v6b: the JVM DNS cache A/B done correctly, through the security property (infrastructure/jvm/*.security).
+    phase('v6b-outage-jakarta-neg0', 'jakarta', {'LAB_JAVA_TOOL_OPTIONS': '-Djava.security.properties=/lab-jvm/negative-ttl-0.security'}, [], ['outage'],
+          extra_ports=[18084], title='Jedis, networkaddress.cache.negative.ttl=0'),
+    phase('v6b-outage-jakarta-nocache', 'jakarta', {'LAB_JAVA_TOOL_OPTIONS': '-Djava.security.properties=/lab-jvm/no-dns-cache.security'}, [], ['outage'],
+          extra_ports=[18084], title='Jedis, no JVM DNS cache (positive and negative TTL 0)'),
 ]
 
 PHASES = [
@@ -386,6 +402,74 @@ def probe_redis2(port):
     res['client'] = call(f'{a}/lab/redis/loads?id=42').get('client')
     return res
 
+OUTAGE_KINDS = {
+    # kind: (break Redis, restore Redis). DNS = whether the name `redis` still resolves during the outage.
+    'stop':  (['docker', 'stop', '{c}'], ['docker', 'start', '{c}']),                                  # container gone, DNS fails
+    'pause': (['docker', 'pause', '{c}'], ['docker', 'unpause', '{c}']),                               # DNS ok, TCP open, no replies
+    'kill':  (['docker', 'exec', '{c}', 'redis-cli', 'shutdown', 'nosave'], ['docker', 'exec', '-d', '{c}', 'redis-server']),  # DNS ok, connection refused
+}
+
+def pct(xs, p):
+    """Nearest-rank percentile."""
+    xs = sorted(xs); return xs[min(len(xs) - 1, max(0, -(-p * len(xs) // 100) - 1))]
+
+def dist(xs):
+    return {'n': len(xs), 'median_ms': round(statistics.median(xs), 1), 'p95_ms': round(pct(xs, 95), 1), 'p99_ms': round(pct(xs, 99), 1),
+            'min_ms': round(min(xs), 1), 'max_ms': round(max(xs), 1)}
+
+def probe_outage(port, reps=5):
+    """Lab 08: each outage kind `reps` times. Per repetition: 10 sequential + 50 concurrent requests while Redis is
+    down, then poll every 50 ms after the restore command has returned until a response is served from Redis
+    (recovery time). DB fallback queries = growth of the instance's fallback counter (each fallback is one MySQL
+    query; the recovery polls are included). Connected clients are read from Redis after recovery."""
+    a = f'http://127.0.0.1:{port}'; url = f'{a}/lab/redis/product/42?mode=distributed'; c = f'{PROJECT}-redis-1'
+    def run(cmd): sh([x.format(c=c) for x in cmd], check=False, timeout=120)
+    def one(u):
+        t = time.perf_counter()
+        try: r = call(u, timeout=30)
+        except Exception as e: r = {'error_http': type(e).__name__}
+        return r, (time.perf_counter() - t) * 1000
+    out = {'client': call(f'{a}/lab/redis/loads?id=42')}
+    for kind, (brk, restore) in OUTAGE_KINDS.items():
+        runs = []
+        for _ in range(reps):
+            call(f'{a}/lab/redis/reset?id=42', 'POST'); call(url); time.sleep(0.5)
+            fb0 = call(f'{a}/lab/redis/loads?id=42')['fallbacks']
+            run(brk)
+            try:
+                seq = [one(url) for _ in range(10)]
+                rs, ms = parallel([url] * 50)
+            finally:
+                run(restore)
+            t0 = time.perf_counter(); polls = 0; recovered = None
+            while time.perf_counter() - t0 < 60:
+                polls += 1; r, _ = one(url)
+                if r.get('source') in ('redis', 'loaded-or-waited'):
+                    recovered = (time.perf_counter() - t0) * 1000; break
+                time.sleep(0.05)
+            fb1 = call(f'{a}/lab/redis/loads?id=42')['fallbacks']
+            info = sh(['docker', 'exec', c, 'redis-cli', 'info', 'clients'], check=False).stdout
+            clients = next((int(l.split(':')[1]) for l in info.splitlines() if l.startswith('connected_clients:')), None)
+            all_r = [x[0] for x in seq] + rs
+            runs.append({'seq_ms': [x[1] for x in seq], 'conc_ms': ms, 'recovery_ms': recovered, 'polls': polls,
+                         'http_errors': sum(1 for r in all_r if 'error_http' in r or 'error' in r and 'source' not in r),
+                         'db_fallback_responses': sum(1 for r in all_r if r.get('source') == 'db-fallback'),
+                         'db_fallback_queries': fb1 - fb0, 'exceptions': sorted({str(r.get('error')) for r in all_r if r.get('error')}),
+                         'connected_clients_after': clients})
+            time.sleep(2)
+        rec = [r['recovery_ms'] for r in runs if r['recovery_ms'] is not None]
+        out[kind] = {'repetitions': reps, 'requests_per_rep': 60,
+                     'sequential': dist([x for r in runs for x in r['seq_ms']]), 'first_request_ms': [round(r['seq_ms'][0], 1) for r in runs],
+                     'concurrent_50': dist([x for r in runs for x in r['conc_ms']]),
+                     'recovery_ms': {'values': [round(x) for x in rec], 'median': round(statistics.median(rec)) if rec else None,
+                                     'min': round(min(rec)) if rec else None, 'max': round(max(rec)) if rec else None, 'not_recovered': reps - len(rec)},
+                     'http_error_rate': sum(r['http_errors'] for r in runs) / (60 * reps),
+                     'db_fallback_responses': sum(r['db_fallback_responses'] for r in runs),
+                     'db_fallback_queries_incl_polls': sum(r['db_fallback_queries'] for r in runs),
+                     'exceptions': sorted({e for r in runs for e in r['exceptions']}),
+                     'connected_clients_after': [r['connected_clients_after'] for r in runs]}
+    return out
+
 def probe_correctness(port):
     base = f'http://127.0.0.1:{port}'
     res = {}
@@ -518,7 +602,8 @@ def main():
                     r['k6'].append({**e, 'rep': i if reps > 1 else None, 'result': res})
             settle(port)
             probes = {'correctness': probe_correctness, 'cpu': probe_cpu, 'di2': probe_di2, 'events': probe_events, 'pinning': probe_pinning, 'redis': probe_redis,
-                      'ownership': probe_ownership, 'failure': probe_failure, 'staleness': probe_staleness, 'redis2': probe_redis2}
+                      'ownership': probe_ownership, 'failure': probe_failure, 'staleness': probe_staleness, 'redis2': probe_redis2,
+                      'outage': probe_outage}
             for name in ph['probes']:
                 try: r[name] = probes[name](port)
                 except Exception as ex: r[name] = {'error': repr(ex)}
