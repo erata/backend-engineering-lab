@@ -1,0 +1,23 @@
+{
+  "utc": "2026-11-27T00:30:11.815825+00:00",
+  "os": "Windows-11-10.0.26300-SP0",
+  "processor": "13th Gen Intel(R) Core(TM) i7-13700H",
+  "logical_cpu_count": 20,
+  "docker": "29.5.3",
+  "k6_image": "grafana/k6:1.3.0",
+  "phases": [
+    "v2-rep5-spring-j25-platform",
+    "v2-rep5-spring-j25-virtual",
+    "v2-rep5-spring-j17-platform",
+    "v2-rep5-jakarta",
+    "v2-rep5-dotnet10",
+    "v2-new-spring",
+    "v2-new-jakarta",
+    "v2-new-dotnet10",
+    "v2-pinning-j21",
+    "v2-pinning-j25",
+    "v2-redis-spring"
+  ],
+  "status": "failed: docker compose -f docker-compose.yml -f docker-compose.cpu.yml -f docker-compose.redis.yml --profile jakarta --profile dotnet up -d --build --force-recreate jakarta mock-api failed (1):\nlab/ee/DiResource.java:[55,4] cannot find symbol\n#12 22.03   symbol:   class ActivateRequestContext\n#12 22.03   location: class de.backendlab.ee.DiResource.ContextualTask\n#12 22.03 [INFO] 1 error\n#12 22.03 [INFO] -------------------------------------------------------------\n#12 22.04 [INFO] ------------------------------------------------------------------------\n#12 22.04 [INFO] Reactor Summary for backend-lab 0.1.0:\n#12 22.04 [INFO] \n#12 22.04 [INFO] backend-lab ........................................ SUCCESS [  0.005 s]\n#12 22.04 [INFO] cache-core ......................................... SUCCESS [ 12.376 s]\n#12 22.04 [INFO] jakarta-lab ........................................ FAILURE [  3.389 s]\n#12 22.04 [INFO] ------------------------------------------------------------------------\n#12 22.04 [INFO] BUILD FAILURE\n#12 22.04 [INFO] ------------------------------------------------------------------------\n#12 22.04 [INFO] Total time:  19.305 s\n#12 22.04 [INFO] Finished at: 2026-11-27T01:09:34Z\n#12 22.04 [INFO] ------------------------------------------------------------------------\n#12 22.04 [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.16.0:compile (default-compile) on project jakarta-lab: Compilation failure\n#12 22.04 [ERROR] /src/implementations/jakarta-ee/src/main/java/de/backendlab/ee/DiResource.java:[55,4] cannot find symbol\n#12 22.04 [ERROR]   symbol:   class ActivateRequestContext\n#12 22.04 [ERROR]   location: class de.backendlab.ee.DiResource.ContextualTask\n#12 22.04 [ERROR] -> [Help 1]\n#12 22.04 [ERROR] \n#12 22.04 [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n#12 22.04 [ERROR] Re-run Maven using the -X switch to enable full debug logging.\n#12 22.05 [ERROR] \n#12 22.05 [ERROR] For more information about the errors and possible solutions, please read the following articles:\n#12 22.05 [ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException\n#12 22.05 [ERROR] \n#12 22.05 [ERROR] After correcting the problems, you can resume the build with the command\n#12 22.05 [ERROR]   mvn <args> -rf :jakarta-lab\n#12 ERROR: process \"/bin/sh -c mvn -B -f implementations/spring-boot/pom.xml -pl ../jakarta-ee -am package -DskipTests\" did not complete successfully: exit code: 1\n------\n > [build 4/4] RUN mvn -B -f implementations/spring-boot/pom.xml -pl ../jakarta-ee -am package -DskipTests:\n22.04 [ERROR] -> [Help 1]\n22.04 [ERROR] \n22.04 [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n22.04 [ERROR] Re-run Maven using the -X switch to enable full debug logging.\n22.05 [ERROR] \n22.05 [ERROR] For more information about the errors and possible solutions, please read the following articles:\n22.05 [ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException\n22.05 [ERROR] \n22.05 [ERROR] After correcting the problems, you can resume the build with the command\n22.05 [ERROR]   mvn <args> -rf :jakarta-lab\n------\n\n Image backend-engineering-lab-full-jakarta Building \nDockerfile:4\n\n--------------------\n\n   2 |     WORKDIR /src\n\n   3 |     COPY implementations/ implementations/\n\n   4 | >>> RUN mvn -B -f implementations/spring-boot/pom.xml -pl ../jakarta-ee -am package -DskipTests\n\n   5 |     FROM quay.io/wildfly/wildfly:42.0.0.Final-jdk25\n\n   6 |     COPY --from=build /src/implementations/jakarta-ee/target/ROOT.war /opt/jboss/wildfly/standalone/deployments/ROOT.war\n\n--------------------\n\nfailed to solve: process \"/bin/sh -c mvn -B -f implementations/spring-boot/pom.xml -pl ../jakarta-ee -am package -DskipTests\" did not complete successfully: exit code: 1\n\n",
+  "finished_utc": "2026-11-27T01:09:35.090243+00:00"
+}
