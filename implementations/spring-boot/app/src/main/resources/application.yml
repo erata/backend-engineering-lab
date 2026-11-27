@@ -15,10 +15,19 @@ spring:
   threads:
     virtual:
       enabled: ${LAB_VIRTUAL_THREADS:false}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT_INTERNAL:6379}
+      timeout: 500ms          # fail fast when Redis is down (default would block for 60 s)
+      connect-timeout: 500ms
 server:
   address: ${SERVER_ADDRESS:127.0.0.1}
   port: ${SERVER_PORT:8080}
 management:
+  health:
+    redis:
+      enabled: false   # Redis is optional (Lab 08 overlay); do not mark the app DOWN without it
   metrics:
     distribution:
       percentiles-histogram:

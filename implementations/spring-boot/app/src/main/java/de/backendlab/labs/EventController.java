@@ -15,10 +15,12 @@ import java.util.*;import java.util.concurrent.*;import org.springframework.cont
  */
 @Profile("lab") @RestController @RequestMapping("/lab/events") public class EventController {
  private final PriceService service;public EventController(PriceService service){this.service=service;}
- @PostMapping("/price-change") public Object change(@RequestParam(defaultValue="1") long id,@RequestParam(defaultValue="100") long cents,@RequestParam(defaultValue="event") String mode,@RequestParam(defaultValue="false") boolean rollback){service.change(id,cents,mode,rollback);return Map.of("id",id,"cents",cents,"mode",mode);}
+ @PostMapping("/price-change") public Object change(@RequestParam(defaultValue="1") long id,@RequestParam(defaultValue="100") long cents,@RequestParam(defaultValue="event") String mode,@RequestParam(defaultValue="false") boolean rollback,@RequestParam(defaultValue="false") boolean failAudit){service.change(id,cents,mode,rollback,failAudit);return Map.of("id",id,"cents",cents,"mode",mode);}
+ /** Probe helper: audit rows and current price for one product (identical route in all three editions). */
+ @GetMapping("/state") public Object state(@RequestParam(defaultValue="1") long id){return service.state(id);}
  @ExceptionHandler(IllegalArgumentException.class) @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST) public Object invalid(IllegalArgumentException e){return Map.of("error",String.valueOf(e.getMessage()));}
- public record PriceChanged(long id,long cents){}
- public record InlinePriceChanged(long id,long cents){}
+ public record PriceChanged(long id,long cents,boolean fail){}
+ public record InlinePriceChanged(long id,long cents,boolean fail){}
 
  @Profile("lab") @Configuration @EnableAsync public static class AuditAsyncConfig {
   /**
@@ -30,14 +32,20 @@ import java.util.*;import java.util.concurrent.*;import org.springframework.cont
  }
 
  @Profile("lab") @Service public static class PriceService {private final JdbcTemplate jdbc;private final ApplicationEventPublisher publisher;public PriceService(JdbcTemplate j,ApplicationEventPublisher p){jdbc=j;publisher=p;}
-  @Transactional public void change(long id,long cents,String mode,boolean rollback){
+  @Transactional public void change(long id,long cents,String mode,boolean rollback,boolean failAudit){
    if(id<1||cents<0||!Set.of("direct","event","event-inline").contains(mode))throw new IllegalArgumentException("mode direct|event|event-inline, id>=1, cents>=0");
    jdbc.update("INSERT INTO lab_prices(product_id,cents) VALUES(?,?) ON DUPLICATE KEY UPDATE cents=VALUES(cents)",id,cents);
-   switch(mode){case "direct"->audit(id,cents);case "event"->publisher.publishEvent(new PriceChanged(id,cents));default->publisher.publishEvent(new InlinePriceChanged(id,cents));}
+   switch(mode){case "direct"->audit(id,cents,failAudit);case "event"->publisher.publishEvent(new PriceChanged(id,cents,failAudit));default->publisher.publishEvent(new InlinePriceChanged(id,cents,failAudit));}
    if(rollback)throw new IllegalStateException("intentional rollback");
   }
-  @Async("auditExecutor") @TransactionalEventListener(phase=TransactionPhase.AFTER_COMMIT) @Transactional(propagation=Propagation.REQUIRES_NEW) public void after(PriceChanged e){audit(e.id(),e.cents());}
-  @TransactionalEventListener(phase=TransactionPhase.AFTER_COMMIT) @Transactional(propagation=Propagation.REQUIRES_NEW) public void afterInline(InlinePriceChanged e){audit(e.id(),e.cents());}
-  private void audit(long id,long cents){jdbc.update("INSERT INTO lab_price_audit(product_id,cents) VALUES(?,?)",id,cents);}
+  @Async("auditExecutor") @TransactionalEventListener(phase=TransactionPhase.AFTER_COMMIT) @Transactional(propagation=Propagation.REQUIRES_NEW) public void after(PriceChanged e){audit(e.id(),e.cents(),e.fail());}
+  @TransactionalEventListener(phase=TransactionPhase.AFTER_COMMIT) @Transactional(propagation=Propagation.REQUIRES_NEW) public void afterInline(InlinePriceChanged e){audit(e.id(),e.cents(),e.fail());}
+  public Map<String,Object> state(long id){
+   Long audits=jdbc.queryForObject("SELECT COUNT(*) FROM lab_price_audit WHERE product_id=?",Long.class,id);
+   var cents=jdbc.queryForList("SELECT cents FROM lab_prices WHERE product_id=?",Long.class,id);
+   return Map.of("id",id,"auditCount",audits,"cents",cents.isEmpty()?-1L:cents.get(0));
+  }
+  /** failAudit simulates a failing side effect: in direct mode it rolls back the whole change, after commit it is lost (logged only). */
+  private void audit(long id,long cents,boolean fail){if(fail)throw new IllegalStateException("simulated audit failure");jdbc.update("INSERT INTO lab_price_audit(product_id,cents) VALUES(?,?)",id,cents);}
  }
 }
