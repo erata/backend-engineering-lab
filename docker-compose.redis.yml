@@ -5,29 +5,43 @@
 # Clients: Spring uses Lettuce, Jakarta Jedis (connection pool, REDIS_POOL_MAX, default 8), .NET StackExchange.Redis.
 # Note: both instances run the catalogue refresh job against one journal (the lab normally assumes a single
 # consumer). That is harmless for the Redis experiments, which do not modify products through the cache.
+#
+# Experiment knobs (all default to the client's normal behaviour):
+#   LAB_REDIS_DISCONNECTED=reject   Lettuce REJECT_COMMANDS while disconnected (default: queue commands)
+#   REDIS_HEARTBEAT_MS=100|500      StackExchange.Redis heartbeat, which also evaluates timeouts (default 1000)
+#   LAB_JAVA_TOOL_OPTIONS=...       extra JVM flags for Jakarta, e.g.
+#                                   -Djava.security.properties=/lab-jvm/negative-ttl-0.security (JVM DNS cache settings;
+#                                   -Dsun.net.inetaddr.* is ignored because the JDK's java.security sets the security property)
 services:
   redis:
     image: redis:7.4
+    # The shell stays alive when redis-server exits, so the outage probe can stop only the process: the container
+    # (and its DNS name) stays up and connections are refused. init forwards `docker stop` signals.
+    command: ['sh', '-c', 'redis-server; sleep infinity']
+    init: true
     ports: ['127.0.0.1:${REDIS_PORT:-6379}:6379']
   app:
     environment:
       REDIS_HOST: redis
+      LAB_REDIS_DISCONNECTED: ${LAB_REDIS_DISCONNECTED:-default}
   app2:
     extends:
       file: docker-compose.yml
       service: app
     environment:
       REDIS_HOST: redis
+      LAB_REDIS_DISCONNECTED: ${LAB_REDIS_DISCONNECTED:-default}
     ports: !override
       - 127.0.0.1:${LAB_PORT2:-8083}:8080
     cpus: ${LAB_CPUS:-4}
     mem_limit: ${LAB_MEMORY:-2g}
-  # LAB_JAVA_TOOL_OPTIONS: extra JVM flags for one experiment (the DNS negative-cache check in Lab 08); empty by default.
   jakarta:
     environment:
       REDIS_HOST: redis
       REDIS_POOL_MAX: ${REDIS_POOL_MAX:-8}
       JAVA_TOOL_OPTIONS: ${LAB_JAVA_TOOL_OPTIONS:-}
+    volumes:
+      - ./infrastructure/jvm:/lab-jvm:ro
   jakarta2:
     extends:
       file: docker-compose.yml
@@ -37,6 +51,8 @@ services:
       REDIS_HOST: redis
       REDIS_POOL_MAX: ${REDIS_POOL_MAX:-8}
       JAVA_TOOL_OPTIONS: ${LAB_JAVA_TOOL_OPTIONS:-}
+    volumes:
+      - ./infrastructure/jvm:/lab-jvm:ro
     ports: !override
       - 127.0.0.1:${JAKARTA_PORT2:-8084}:8080
     cpus: ${LAB_CPUS:-4}
@@ -44,6 +60,7 @@ services:
   dotnet:
     environment:
       REDIS_HOST: redis
+      REDIS_HEARTBEAT_MS: ${REDIS_HEARTBEAT_MS:-1000}
   dotnet2:
     extends:
       file: docker-compose.yml
@@ -51,6 +68,7 @@ services:
     profiles: [dotnet]
     environment:
       REDIS_HOST: redis
+      REDIS_HEARTBEAT_MS: ${REDIS_HEARTBEAT_MS:-1000}
     ports: !override
       - 127.0.0.1:${DOTNET_PORT2:-8085}:8080
     cpus: ${LAB_CPUS:-4}

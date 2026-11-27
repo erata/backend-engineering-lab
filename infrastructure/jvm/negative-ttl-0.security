@@ -1,0 +1,4 @@
+# Lab 08 DNS experiment: do not cache failed lookups (JDK default 10 s, set in conf/security/java.security).
+# Loaded with -Djava.security.properties=...; the sun.net.inetaddr.negative.ttl system property is ignored when this
+# security property is set, which is the case in the JDK default file.
+networkaddress.cache.negative.ttl=0

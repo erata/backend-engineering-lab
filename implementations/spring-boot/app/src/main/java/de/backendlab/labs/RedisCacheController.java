@@ -71,6 +71,6 @@ public class RedisCacheController {
  /** Explicit invalidation after a write; without it other instances serve the old value until the 30 s TTL expires. */
  @PostMapping("/invalidate") public Map<String,Object> invalidate(@RequestParam(defaultValue="42") long id){return Map.of("invalidated",Boolean.TRUE.equals(redis.delete("lab:product:"+id)));}
  @PostMapping("/reset") public Map<String,Object> reset(@RequestParam(defaultValue="42") long id){redis.delete(List.of("lab:product:"+id,"lab:loads:"+id,"lab:lock:"+id));return Map.of("reset",id);}
- @GetMapping("/loads") public Map<String,Object> loads(@RequestParam(defaultValue="42") long id){String v=redis.opsForValue().get("lab:loads:"+id);return Map.of("id",id,"loads",v==null?0:Long.parseLong(v),"fallbacks",FALLBACKS.get(),"client","Lettuce");}
+ @GetMapping("/loads") public Map<String,Object> loads(@RequestParam(defaultValue="42") long id){String v=redis.opsForValue().get("lab:loads:"+id);return Map.of("id",id,"loads",v==null?0:Long.parseLong(v),"fallbacks",FALLBACKS.get(),"client","Lettuce","disconnected",System.getenv().getOrDefault("LAB_REDIS_DISCONNECTED","default"));}
  @ExceptionHandler(IllegalArgumentException.class) @ResponseStatus(org.springframework.http.HttpStatus.BAD_REQUEST) public Object invalid(IllegalArgumentException e){return Map.of("error",String.valueOf(e.getMessage()));}
 }

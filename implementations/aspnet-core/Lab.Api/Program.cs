@@ -53,7 +53,7 @@ app.MapGet("/lab/resources/db",async(int? pool,int? ms)=>{int p=pool??5,d=ms??30
 app.MapGet("/lab/redis/product/{id:long}",(long id,string? mode,RedisLab redis)=>redis.Product(id,mode??"distributed"));
 app.MapPost("/lab/redis/invalidate",async(long? id,RedisLab redis)=>Results.Ok(new{invalidated=await redis.Db.KeyDeleteAsync($"lab:product:{id??42}")}));
 app.MapPost("/lab/redis/reset",async(long? id,RedisLab redis)=>{long i=id??42;await redis.Db.KeyDeleteAsync(new RedisKey[]{$"lab:product:{i}",$"lab:loads:{i}",$"lab:lock:{i}"});return Results.Ok(new{reset=i});});
-app.MapGet("/lab/redis/loads",async(long? id,RedisLab redis)=>{long i=id??42;var v=await redis.Db.StringGetAsync($"lab:loads:{i}");return Results.Ok(new{id=i,loads=v.IsNull?0:(long)v,fallbacks=Interlocked.Read(ref RedisLab.Fallbacks),client="StackExchange.Redis"});});
+app.MapGet("/lab/redis/loads",async(long? id,RedisLab redis)=>{long i=id??42;var v=await redis.Db.StringGetAsync($"lab:loads:{i}");return Results.Ok(new{id=i,loads=v.IsNull?0:(long)v,fallbacks=Interlocked.Read(ref RedisLab.Fallbacks),client="StackExchange.Redis",heartbeatMs=RedisLab.HeartbeatMs});});
 }app.Run();
 static bool Valid(NameRequest? req)=>req?.Name is {Length: >0 and <=255} n&&!string.IsNullOrWhiteSpace(n);
 public sealed record NameRequest(string Name);
@@ -82,8 +82,11 @@ public sealed class RedisLab{
  public static long Fallbacks;
  static readonly string Cs=Environment.GetEnvironmentVariable("DB_CONNECTION")??"Server=localhost;Database=backendlab;User ID=lab;Password=local-lab-password";
  static readonly TimeSpan Ttl=TimeSpan.FromSeconds(30),Lease=TimeSpan.FromSeconds(3);
+ // REDIS_HEARTBEAT_MS (Lab 08 experiment): the client evaluates command timeouts on its heartbeat (default 1000 ms).
+ public static readonly int HeartbeatMs=int.TryParse(Environment.GetEnvironmentVariable("REDIS_HEARTBEAT_MS"),out var hb)?hb:1000;
  readonly Lazy<ConnectionMultiplexer> mux=new(()=>ConnectionMultiplexer.Connect(new ConfigurationOptions{
-  EndPoints={{Environment.GetEnvironmentVariable("REDIS_HOST")??"localhost",6379}},AbortOnConnectFail=false,ConnectTimeout=500,SyncTimeout=500,AsyncTimeout=500}));
+  EndPoints={{Environment.GetEnvironmentVariable("REDIS_HOST")??"localhost",6379}},AbortOnConnectFail=false,ConnectTimeout=500,SyncTimeout=500,AsyncTimeout=500,
+  HeartbeatInterval=TimeSpan.FromMilliseconds(HeartbeatMs)}));
  readonly ConcurrentDictionary<string,Task<string>> inflight=new();
  readonly string instance=Environment.MachineName;
  public IDatabase Db=>mux.Value.GetDatabase();
