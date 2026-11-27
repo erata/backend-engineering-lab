@@ -19,7 +19,7 @@ Last full validation: **2026-11-27** on Windows 11 (Intel i7-13700H, 20 logical 
 | Observability: metrics + traces for all three editions | [observability validation](../reports/observability/2026-11-27-validation.md) | **verified ingestion** in Prometheus, Tempo and Grafana |
 | Benchmarks: JMH, BDN, k6 (8 labs, 3 editions, repetitions) | see report | completed |
 | Redis TTL demo | `tools/redis_lab.py` | not run separately (the Redis shared-cache experiment supersedes it) |
-| GitHub Actions | `.github/workflows/ci.yml` | workflow pushed; **result not inspected** (private repository, reading CI results with the stored credential was not permitted) |
+| GitHub Actions | `.github/workflows/ci.yml` | passed: all three jobs (verify, dotnet, jakarta) green on 99c5f6a, the v1.0.0 commit, as checked in the GitHub UI on 2026-11-27 |
 
 ## 2. Defects found and fixed
 

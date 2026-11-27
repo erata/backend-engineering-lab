@@ -20,7 +20,7 @@ The original coding exercise asked for an MVC page and optional client-side sear
 - Can a naive timestamp/ID watermark miss a late commit? How can a transactional change journal avoid that class of failure?
 - How do atomic operations and locks prevent lost updates and overselling?
 - What is the difference between concurrency, asynchronous I/O and parallel CPU execution?
-- Does Java 25 virtual-thread scheduling change I/O throughput compared with platform threads? How do Java 17 and 25 differ if both use platform threads?
+- Does Java 25 virtual-thread scheduling change I/O throughput compared with platform threads? How do Java 17 and 25 differ if both use platform threads? What did JDK 24+ change about pinning compared with Java 21?
 - How do DI lifetimes affect allocation, shared state and resource ownership?
 - When does an in-process event decouple side effects, and what durability guarantees does it not provide?
 - How do resource limits and cache stampedes affect a system even when threads are plentiful?
@@ -50,17 +50,22 @@ Each edition owns its database and cache. They do not call one another. Java edi
 
 | Concern | Spring | Jakarta EE | .NET |
 |---|---|---|---|
-| Runtime | JDK 25 or 17 | JDK 25 | .NET 10 / 11 |
+| Runtime | JDK 25, 21 (pinning experiment) or 17 | JDK 25 | .NET 10 / 11 |
 | Framework | Spring Boot 4.2.0 | Jakarta EE 11, WildFly 42 candidate image | ASP.NET Core |
-| HTTP | Spring MVC | JAX-RS | Minimal APIs |
-| DI | Spring IoC | CDI | Built-in DI |
+| HTTP | Spring MVC on Tomcat | JAX-RS | Minimal APIs on Kestrel |
+| Threads | Tomcat platform or virtual threads (`spring.threads.virtual.enabled`) | Default managed executor or virtual executor (Concurrency 3.1, `maxAsync=2000`) | ThreadPool, async/await |
+| DI | Spring IoC | CDI | Built-in DI (`ValidateScopes`) |
 | SQL | Spring JDBC | Explicit JDBC | MySqlConnector async ADO.NET |
+| Connection pool | HikariCP | WildFly datasources (`@DataSourceDefinition`) | MySqlConnector pool |
+| Transactions and events | `@Transactional`, `@TransactionalEventListener` (after commit) | JTA, `@Observes(during = AFTER_SUCCESS)` | ADO.NET transaction, transactional outbox + BackgroundService |
 | Scheduling | `@Scheduled` | ManagedScheduledExecutorService | BackgroundService / PeriodicTimer |
 | Concurrency | ExecutorService | ManagedExecutorService | Task, Parallel, Interlocked |
-| Cache | HashMap, lock, ConcurrentHashMap, atomic snapshot, Caffeine | Same Java kernel | Dictionary, lock, ConcurrentDictionary, immutable dictionary, MemoryCache |
+| In-memory cache | HashMap, lock, ConcurrentHashMap, atomic snapshot, Caffeine | Same Java kernel | Dictionary, lock, ConcurrentDictionary, immutable dictionary, MemoryCache |
+| Shared cache | Redis 7.4 (Spring Data Redis), two app instances, `SET NX PX` lock | — | — |
 | Testing | JUnit, Testcontainers, JMH | Java core tests, HTTP contract smoke | xUnit, BenchmarkDotNet, HTTP contract smoke |
+| Load and observability (all) | k6 (in Docker), OpenTelemetry (Java agent / .NET SDK), Collector, Prometheus, Tempo, Grafana | | |
 
-These versions were resolved, built and run on 2026-11-26/27 (see [validation](docs/VALIDATION_STATUS.md)). Java application source targets release 17; build the full reactor with JDK 25 because inherited tests use newer JDK APIs. This allows the same Spring artifact to run on both Java versions. Java 25 is the primary runtime. .NET 10 is the LTS target and .NET 11 is an alternative target; C# defaults to 14 and 15 respectively. JDBC/ADO.NET are intentional to make transactions, timestamp predicates, commit ordering and journal acknowledgement visible. ORM comparison is outside scope.
+These versions were resolved, built and run on 2026-11-26/27 (see [validation](docs/VALIDATION_STATUS.md)). Java application source targets release 17; build the full reactor with JDK 25 because inherited tests use newer JDK APIs. This allows the same Spring artifact to run on Java 17, 21 and 25. Java 25 is the primary runtime. .NET 10 is the LTS target and .NET 11 is an alternative target; C# defaults to 14 and 15 respectively. JDBC/ADO.NET are intentional to make transactions, timestamp predicates, commit ordering and journal acknowledgement visible. ORM comparison is outside scope.
 
 ## 4. Lab catalogue
 
@@ -146,6 +151,11 @@ Set `$env:LAB_CACHE_STRATEGY='snapshot'` (default), `synchronized`, `concurrent`
 | POST | `/lab/events/price-change?mode=event&id=1&cents=200` | Compare orchestration / events |
 | GET | `/lab/resources/stampede?single=true` | Single-flight experiment |
 | GET | `/lab/resources/pool?permits=5` | Simulated resource pool |
+| GET | `/lab/resources/db?pool=5&ms=30` | Real JDBC/ADO.NET connection pool |
+| GET | `/lab/di/mutable?mode=singleton&user=X` | Shared mutable state (also `/lab/di/captive`, `/lab/di/ownership`) |
+| GET | `/lab/events/state?id=1` | Audit count / outbox state after an event experiment |
+| GET | `/lab/threads/pinning?mode=synchronized` | Virtual-thread pinning (Spring, Java 21+) |
+| GET | `/lab/redis/product/42?mode=distributed` | Redis shared cache across two instances (Spring + Redis overlay) |
 
 Use the [catalogue OpenAPI contract](shared/contracts/openapi.yaml) for common payloads and [extended API reference](docs/EXTENDED_API.md) for experimental endpoints. The older [API guide](docs/API.md) describes the detailed Spring contract; the ports are not claimed to implement identical error payloads or readiness/status fields. Product writes are eventually visible after refresh, not read-your-writes. No price or stock fields were added to the original Product record; those experiments use separate state.
 
@@ -159,7 +169,7 @@ mvn -B -f implementations/spring-boot/pom.xml verify
 dotnet test implementations/aspnet-core/Lab.Tests/Lab.Tests.csproj -f net10.0
 ```
 
-The first two Python commands compile actual portable Java sources with the locally installed JDK, without Maven dependencies. The first requires JDK 21+ for its offline test harness; the second compiles for Java 17. Full Maven tests include Caffeine and the Spring MySQL/Testcontainers scenario. All of these, plus the common HTTP smoke script against all three editions, passed on 2026-11-26 ([validation](docs/VALIDATION_STATUS.md)). The CI workflow source is included but has not been executed on a remote.
+The first two Python commands compile actual portable Java sources with the locally installed JDK, without Maven dependencies. The first requires JDK 21+ for its offline test harness; the second compiles for Java 17. Full Maven tests include Caffeine and the Spring MySQL/Testcontainers scenario. All of these, plus the common HTTP smoke script against all three editions, passed on 2026-11-26 and again from a clean checkout on 2026-11-27 ([validation](docs/VALIDATION_STATUS.md)). The GitHub Actions workflow (Maven verify, offline checks, JMH smoke, .NET 10/11 tests, and the HTTP contract against all three editions in Docker) passes on the v1.0.0 commit.
 
 ## 8. Benchmark methodology
 
@@ -179,7 +189,7 @@ $env:BASE_URL='http://localhost:8080'; $env:LAB_PATH='/lab/io/blocking'; $env:RA
 k6 run --summary-export reports/k6-spring-platform.json benchmarks/k6/workload.js
 ```
 
-The whole HTTP matrix (3 backends, Java 17/25, platform/virtual threads, .NET 10/11, 4 cache strategies, CPU quotas 1/2/4/8) is automated:
+The whole HTTP matrix (3 backends, Java 17/21/25, platform/virtual threads, WildFly virtual executor, .NET 10/11, 4 cache strategies, CPU quotas 1/2/4/8, DI, events, real pools, Redis) is automated, including 3–5 repetitions with median/min/max and correctness probes:
 
 ```powershell
 python tools/run_http_suite.py --list        # phases and experiments
