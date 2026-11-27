@@ -1,63 +1,109 @@
 # Lab 03 — Blocking, sequential-async and concurrent I/O
 
-> Use case: **"A product-detail page needs data from three independent services: product (100 ms), inventory (200 ms) and pricing (300 ms). How fast can it answer?"**
+> **Use case:** a product-detail page needs data from three independent services: product (100 ms), inventory (200 ms) and pricing (300 ms). How fast can it answer, and what does it cost in threads?
 
-## 1. Scenario
+## 1. Problem and why it matters
 
-The [mock upstream](../../infrastructure/mock-api/server.py) answers `/product`, `/inventory` and `/pricing` after fixed delays of 100/200/300 ms. The aggregator returns the three bodies in order.
+Most backend latency is waiting on databases and other services. How a request waits decides two separate things: **latency** (how long one user waits) and **capacity** (how many requests can wait at the same time). Confusing "async" with "concurrent" is one of the most common performance mistakes, and in .NET mixing blocking with async can starve the whole server.
 
-| Mode | What the code does | Expected latency of one request |
-|---|---|---|
-| `blocking` | call 1 → wait → call 2 → wait → call 3, blocking the thread | 100 + 200 + 300 = **600 ms** |
-| `sequential-async` | same order, but each call is non-blocking (`thenCompose` / `await`) | still **600 ms**: async does not reorder dependent waits |
-| `concurrent` | start all three, then join (`allOf` / `Task.WhenAll`) | max(100, 200, 300) = **300 ms** |
+## 2. Concepts
 
-Async and concurrency are different things. Async frees the **thread** while waiting; concurrency overlaps the **waits**. Only the second shortens a single request.
+| Concept | Meaning |
+|---|---|
+| Blocking I/O | the calling thread is parked until the response arrives |
+| Non-blocking / async I/O | the thread registers a continuation and is free while waiting |
+| Sequential async | `await a; await b; await c` – async, but the waits still add up |
+| Concurrent async | start a, b and c, then await all – the waits overlap |
+| Sync-over-async (.NET) | blocking on an async call (`.Result`, `.GetAwaiter().GetResult()`) |
+| ThreadPool starvation | all pool threads are blocked, waiting for work that itself needs a pool thread |
 
-## 2. Implementation
+Conceptual timeline (not measured) of one request:
 
-| Edition | Code | Notes |
-|---|---|---|
-| Spring Boot | `Experiments.io` via [EngineeringController](../../implementations/spring-boot/app/src/main/java/de/backendlab/labs/EngineeringController.java) | JDK `HttpClient.send` / `sendAsync`; the controller returns a `CompletionStage`, so Spring MVC completes the request asynchronously. Extra route `/lab/io/concurrent-blocking?threadModel=platform|virtual` (blocking calls fanned out to an executor) |
-| Jakarta EE | same kernel via [Endpoints](../../implementations/jakarta-ee/src/main/java/de/backendlab/ee/Endpoints.java) | JAX-RS resource returns `CompletionStage` |
-| ASP.NET Core | `/lab/io/{mode}` in [Program.cs](../../implementations/aspnet-core/Lab.Api/Program.cs) | `IHttpClientFactory`; `blocking` = `GetStringAsync(...).GetAwaiter().GetResult()` (**sync-over-async**), `sequential-async` = `await` in a loop, `concurrent` = `Task.WhenAll` |
-
-Correctness: every mode returns exactly three bodies in the order product, inventory, pricing (checked by `compare_http.py` and by k6's JSON check).
-
-## 3. Benchmark
-
-k6, 50 req/s for 30 s per mode, backend limited to 4 CPUs. 50 req/s keeps the Java servers well below their thread limits (≈ 30 requests in flight). The overload case is [Lab 04](../04-virtual-threads/README.md).
-
-## 4. Results
-
-Run [20261126T222721Z](../../reports/http-runs/20261126T222721Z/REPORT.md), latency in ms.
-
-| Edition | blocking p50 / p99 | sequential-async p50 / p99 | concurrent p50 / p99 | CPU (blocking / seq / conc) |
-|---|---|---|---|---|
-| Spring Boot (Java 25) | 605.9 / 612.9 | 604.8 / 607.7 | **302.9 / 305.2** | 29% / 34% / 26% |
-| Jakarta EE (Java 25) | 606.0 / 610.5 | 605.5 / 609.0 | **303.4 / 305.9** | 33% / 42% / 22% |
-| ASP.NET Core (.NET 10) | **100% failed** (10 s timeouts, 28.7 of 50 req/s) | 603.7 / 607.0 | **302.5 / 304.5** | 1.5% / 15% / 15% |
-
-## 5. Interpretation
-
-- **Concurrency halves latency; async alone doesn't change it.** All three stacks land within 5 ms of the theoretical 300 ms / 600 ms. The ~3–6 ms above theory is HTTP and scheduling overhead.
-- **Blocking and sequential-async look identical at low load** (605 vs 605 ms). The difference is invisible until threads run out (Lab 04: 268–322 req/s ceiling for blocking on Tomcat).
-- **.NET sync-over-async collapses at only 50 req/s.** The container used **1.5% CPU** while every request timed out. That is the signature of **ThreadPool starvation**. `.GetAwaiter().GetResult()` blocks a pool thread, and the HTTP continuation that would unblock it also needs a pool thread. The pool starts at about 4 threads (1 per CPU) and injects new ones slowly (roughly 1–2/s). Thirty requests in flight exhaust it, and everything queues behind blocked threads. The same .NET code in `sequential-async` mode is perfectly healthy. Java has no equivalent failure because its blocking socket call doesn't need a pool thread to complete.
-- **A harness lesson from this lab:** the first runs showed .NET at ~735 ms instead of 605 ms, +40 ms per upstream call. The cause was the mock server: with HTTP/1.1 keep-alive it wrote headers and body as two small TCP segments, and Nagle's algorithm with the client's delayed ACK added ~40 ms. Fixing the mock (`TCP_NODELAY`) removed it. Always check that the measuring tool isn't the bottleneck.
-
-## 6. Trade-offs
-
-| Style | Pros | Cons |
-|---|---|---|
-| Blocking, sequential | simplest code, stack traces readable | one thread per in-flight request; serial latency |
-| Async, sequential | frees threads (scales concurrency) | same latency; more complex code; .NET: never mix with `.Result` |
-| Concurrent fan-out | latency = slowest dependency | must handle partial failure, timeouts and cancellation for each branch; multiplies load on downstream services |
-
-## 7. Reproduce
-
-```powershell
-docker compose up -d mock-api app
-Invoke-RestMethod http://localhost:8080/lab/io/concurrent
-$env:BASE_URL='http://localhost:8080'; $env:LAB_PATH='/lab/io/sequential-async'; $env:RATE='50'
-k6 run benchmarks/k6/workload.js          # or: python tools/run_http_suite.py --only spring-j25-platform-snapshot
+```mermaid
+gantt
+  title One request, three upstream calls (conceptual)
+  dateFormat  x
+  axisFormat %L ms
+  section Sequential (blocking or async)
+  product   :0, 100
+  inventory :100, 300
+  pricing   :300, 600
+  section Concurrent
+  product   :0, 100
+  inventory :0, 200
+  pricing   :0, 300
 ```
+
+## 3. Incorrect and correct implementations
+
+| Mode | Code | Latency | Thread usage | Verdict |
+|---|---|---|---|---|
+| `blocking` | call → wait → call → wait → call | Σ = 600 ms | 1 thread blocked for 600 ms | correct, limited by thread count (Lab 04) |
+| `sequential-async` | `thenCompose` / `await` in a loop | Σ = 600 ms | no thread while waiting | correct, but no latency gain |
+| `concurrent` | `allOf` / `Task.WhenAll` | max = 300 ms | no thread while waiting | correct and fastest |
+| .NET `blocking` (sync-over-async) | `GetStringAsync(...).GetAwaiter().GetResult()` | – | blocks a pool thread **and** needs one for the continuation | ✖ anti-pattern |
+
+Code: `Experiments.io` ([Experiments.java](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/experiments/Experiments.java)) for Spring and Jakarta (JDK `HttpClient.send`/`sendAsync`, `CompletionStage` responses); `/lab/io/{mode}` in [Program.cs](../../implementations/aspnet-core/Lab.Api/Program.cs) (`IHttpClientFactory`). Upstream: [mock-api/server.py](../../infrastructure/mock-api/server.py).
+
+## 4. Framework differences
+
+| | Spring Boot | Jakarta EE | ASP.NET Core |
+|---|---|---|---|
+| async response | controller returns `CompletionStage`; Spring MVC completes it | JAX-RS resource returns `CompletionStage` | `async` minimal API handler |
+| blocking call | real blocking socket read (`HttpClient.send`) | same | only async APIs exist, so "blocking" means blocking on a `Task` |
+| consequence | a blocked thread does not need another thread to wake up | same | the continuation that would unblock the thread needs a ThreadPool thread itself |
+
+## 5. Correctness tests
+
+Every mode returns exactly three bodies in the order product, inventory, pricing. This is checked by `compare_http.py` (concurrent mode, all editions), by `check_extended.py` against a real local HTTP mock, and by k6's JSON check on every request.
+
+## 6. Benchmark methodology
+
+k6 constant arrival rate, 50 req/s for 30 s per mode, 4 CPUs per backend. 50 req/s keeps the Java servers below their thread limits (≈ 30 requests in flight); the overload case is [Lab 04](../04-virtual-threads/README.md). Repeated 5× for the main modes (v2 runs).
+
+## 7. Results
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab03-io-dark.svg"><img alt="Grouped bar chart of median p50 latency over 5 runs: blocking and sequential-async about 605 ms, concurrent about 303 ms on all three editions; .NET blocking (sync-over-async) shows the successful runs only, the first run after start starved." src="../../docs/images/lab03-io-light.svg"></picture>
+
+5 repetitions per mode, median [min – max], upstream = asyncio mock — runs [20261127T021849Z](../../reports/http-runs/20261127T021849Z/REPORT.md) (Spring) and [20261127T063929Z](../../reports/http-runs/20261127T063929Z/REPORT.md) (Jakarta, .NET):
+
+| Edition | blocking p50 ms | sequential-async p50 ms | concurrent p50 ms |
+|---|---|---|---|
+| Spring Boot (Java 25) | 605.8 [605.7 – 607.1] | 605.6 [605.5 – 605.8] | 303.1 [302.7 – 303.4] |
+| Jakarta EE | 606.8 [605.8 – 607.6] | 605.8 [605.3 – 607.1] | 303.0 [303.0 – 303.0] |
+| ASP.NET Core .NET 10 | sync-over-async: run 1 **84.6 % failed** (CPU 0.9 %), runs 2–5: 604.5 | 604.1 [604.1 – 604.2] | 302.1 [302.0 – 302.1] |
+| ASP.NET Core .NET 11 (3 runs) | – | 604.1 [603.8 – 604.1] | 302.0 [302.0 – 302.0] |
+
+p99 stays within 3–8 ms of p50 in every successful run. CPU at 50 req/s was 12–35 % of one core (single `docker stats` samples). An earlier single-run table with the old threaded mock ([20261126T222721Z](../../reports/http-runs/20261126T222721Z/REPORT.md)) agrees for all correct modes; there, .NET sync-over-async failed 100 %.
+## 8. Interpretation and trade-offs
+
+**Observations**
+1. Concurrent ≈ 303 ms and sequential ≈ 605 ms on every stack, within 2–6 ms of theory, with very small spread across 5 runs.
+2. Blocking and sequential-async have identical latency at 50 req/s.
+3. .NET sync-over-async is **bistable**: the first run after a cold start failed 85 % of requests at 0.9 % CPU; later runs on the same, now warmed-up instance succeeded ([investigation 4](../../reports/investigations/2026-11-27-anomalies.md#4-net-sync-over-async-bistable-not-always-failing-labs-0304)).
+
+**Explanations**
+- (1, 2) Async changes *who waits* (no thread is parked), not *how long*. Only overlapping independent calls shortens one request.
+- (3) The classic **ThreadPool starvation** signature: idle CPU, rising queue. Each request parks a pool thread on `.GetAwaiter().GetResult()`; the HTTP continuation that would release it also needs a pool thread. The pool starts at about one thread per CPU (`threadPool: 5` reported) and adds threads slowly, so 30 waiting requests stall a cold instance. Threads injected during that failure are kept for a while, which is why the next run on the same instance survived. That makes the bug dangerous: it hits after every deploy or restart and is invisible on a warmed-up instance. The identical code in `sequential-async` mode was healthy in every run.
+
+**Conclusion:** use concurrent fan-out for independent calls, async to save threads, and never block on async code in .NET.
+
+| Style | + | − |
+|---|---|---|
+| blocking, sequential | simplest code, readable stack traces | one thread per waiting request; latency adds up |
+| async, sequential | frees threads | same latency; more complex code |
+| concurrent fan-out | latency = slowest call | partial failures, timeouts and cancellation per branch; more load on downstream services |
+
+**A harness lesson from this lab:** the first runs showed .NET at ~735 ms instead of 605 ms, +40 ms per upstream call. The mock server wrote headers and body as two small TCP segments, and Nagle's algorithm plus the client's delayed ACK added ~40 ms. `TCP_NODELAY` in the mock removed it ([VALIDATION_STATUS.md](../../docs/VALIDATION_STATUS.md), F6). Always check that the measuring setup is not the bottleneck.
+
+## 9. Limitations
+
+- The upstream is a Python mock with fixed delays and no jitter, failures or rate limits.
+- No timeout, retry or partial-failure handling is benchmarked for the concurrent mode.
+
+## 10. Use cases and interview questions
+
+- Product pages, dashboards and BFFs that aggregate several services; parallel DB queries.
+- *Does `async` make a request faster?* Not by itself. It saves threads; concurrency saves time.
+- *Why did .NET fail at 50 req/s with idle CPU, but only on a fresh instance?* ThreadPool starvation from sync-over-async, plus slow thread injection.
+- *What do you need for a fan-out in production?* Per-call timeouts, cancellation, a bulkhead/limit, and a decision about partial results.

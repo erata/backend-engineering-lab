@@ -1,176 +1,154 @@
 # Backend Engineering Lab — Benchmark report
 
-**Date:** 2026-11-26 · **Scope:** 8 labs × 3 backends (Spring Boot 4.2 / Jakarta EE 11 on WildFly 42 / ASP.NET Core) · **Tools:** JMH 1.37, BenchmarkDotNet 0.15.6, k6 1.3.0
-**Status:** all builds, unit/integration tests and HTTP contract smoke tests passed before measurement ([validation](../docs/VALIDATION_STATUS.md)).
+**Final state:** 2026-11-27 · **Scope:** 8 labs × 3 backends (Spring Boot 4.2 / Jakarta EE 11 on WildFly 42 / ASP.NET Core .NET 10 and 11) · **Tools:** JMH 1.37, BenchmarkDotNet 0.15.6, k6 1.3.0, custom probes.
 
-These are **indicative** measurements of these lab implementations on one workstation, mostly one run per configuration. They show mechanisms and orders of magnitude, not a universal framework ranking. Methodology: [docs/BENCHMARKS.md](../docs/BENCHMARKS.md).
+These are **indicative measurements of these lab implementations on one workstation**. They explain mechanisms and orders of magnitude; they are not a framework ranking. Every number below links to its raw data. Methodology: [docs/BENCHMARKS.md](../docs/BENCHMARKS.md). Validation and defects: [docs/VALIDATION_STATUS.md](../docs/VALIDATION_STATUS.md). Unexpected results and how they were resolved: [investigations](investigations/2026-11-27-anomalies.md).
 
 ---
 
 ## 1. Key findings
 
-| # | Finding | Lab | Evidence |
+| # | Finding | Lab | Evidence (repetitions) |
 |---|---|---|---|
-| 1 | **Virtual threads remove the blocking-I/O ceiling.** At 400 req/s of 600 ms blocking calls: platform Tomcat 268–322 req/s with p50 2.5–4.5 s; virtual threads 392 req/s at p50 605 ms, 0 dropped. Java 17 vs 25 with platform threads: identical | 04 | §3.4 |
-| 2 | **.NET sync-over-async starves the ThreadPool**: 100% timeouts at only 50 req/s, with **1.5% CPU**. The same code with `await` is healthy | 03, 04 | §3.3 |
-| 3 | **Concurrent fan-out halves latency** (303 ms vs 605 ms) on all stacks; async alone doesn't change single-request latency | 03 | §3.3 |
-| 4 | **Snapshot cache: fastest reads, most expensive writes.** 88 M reads/s (19× a global lock), but only 33 batches/s and 2.2 s of GC under continuous writes | 01 | §3.1 |
-| 5 | **The unsafe reservation oversold in 11–29 of 30 runs** (up to 185 of 100 units). Lock and CAS: 0 failures in 180 runs. CAS is 6× faster than lock in .NET; in Java task overhead hides the difference | 02 | §3.2 |
-| 6 | **Connection-pool deadlock** in a common Spring pattern: an AFTER_COMMIT listener with `REQUIRES_NEW` on the request thread → `active=10, idle=0, waiting=198`, 100% failures, the whole app frozen. Fixed by an async listener | 07 | §3.7 |
-| 7 | **Hot-row contention:** keeping the audit insert inside the price transaction caps a single-row workload at ~150–200 tx/s (p50 up to 3.9 s). Moving it after commit: p99 6.5 ms | 07 | §3.7 |
-| 8 | **Stampede size = effective concurrency**: without single-flight 8 (WildFly executor), 32 (Spring pool) or 100 (.NET async) loads; with single-flight always 1 | 08 | §3.8 |
-| 9 | **CPU quota is time, not cores:** at `cpus: 4`, 8 workers still beat 4 workers for a 27 ms burst; at 1 CPU parallelism gives ≤ 1.2× | 05 | §3.5 |
-| 10 | **Per-request heavy objects** cost 3–15× CPU; on .NET an 800 KB array per request hits the LOH and lifts p95 to 43 ms | 06 | §3.6 |
-| 11 | **WildFly request path** costs ≈ 3.7 ms CPU per catalogue read (vs ≈ 0.44 ms on Spring): it saturates 4 CPUs at ~1,200 req/s and needs > 30 s of JIT warm-up | 01 | §3.1 |
+| 1 | **Virtual threads remove the blocking-I/O thread ceiling.** 400 req/s of 600 ms blocking calls: platform threads 324 req/s at p50 2.4 s, virtual threads 392 req/s (all requests) at p50 606 ms, 0 errors. Java 17 = Java 25 with platform threads | 04 | §3.4 (5 runs each) |
+| 2 | **WildFly's Concurrency 3.1 virtual executor works, but only with `maxAsync` set:** without it, a semaphore in the implementation capped concurrency (100 % timeouts); with it, 392 req/s at p50 606 ms | 04 | §3.4 (3 runs), investigation 3 |
+| 3 | **JDK 21 pins virtual threads in `synchronized`** (1,254 ms vs theory 1,250 ms); JDK 25 does not (51 ms) | 04 | §3.4 (10 runs) |
+| 4 | **.NET sync-over-async starves the ThreadPool on a cold start** (up to 100 % failures at 0.9–3 % CPU) and survives once the pool has grown; async code never failed | 03, 04 | §3.3–3.4, investigation 4 |
+| 5 | **Concurrent fan-out halves latency** (303 ms vs 605 ms) on all stacks; async alone does not | 03 | §3.3 (5 runs) |
+| 6 | **Snapshot cache: fastest reads (88 M/s, 19× a global lock), most expensive writes** (33 batches/s) | 01 | §3.1 (JMH) |
+| 7 | **Unsafe check-then-act oversold in 11–29 of 30 runs**; lock/CAS 0 of 180. CAS 6× faster than `lock` in .NET, equal in Java | 02 | §3.2 |
+| 8 | **Singletons holding request state returned the wrong user in 95–98 % of concurrent responses** on all three frameworks; captive dependencies and wrong ownership verified in each framework's own idiom | 06 | §3.6 |
+| 9 | **After-commit side effects are not durable:** a failing handler lost 10/10 audits in Spring and Jakarta; the .NET outbox delivered 10/10 after retries. A shared executor delayed Jakarta audits by ~130 s | 07 | §3.7 |
+| 10 | **Spring `AFTER_COMMIT` + `REQUIRES_NEW` deadlocks the Hikari pool** (100 % failures); the same pattern did not deadlock on WildFly/JTA | 07 | §3.7 |
+| 11 | **Hot-row contention:** keeping the audit in the price transaction collapses Spring at 200 req/s (p50 1.6–8.7 s across 5 runs); moving it after commit gives p50 2.7 ms. The outbox keeps the transaction long (p50 658 ms) | 07 | §3.7 |
+| 12 | **Pools behave as Little's law predicts:** pool 5 × 30 ms ≈ 160 successful req/s in all three editions; they differ in failure mode (fail fast vs queue) | 08 | §3.8 |
+| 13 | **Stampede size = effective concurrency** (8 / 32 / 100 loads); single-flight → 1; across 2 instances local single-flight → 2, Redis lock → 1 | 08 | §3.8 |
 
 ## 2. Environment and method
 
 | Item | Value |
 |---|---|
-| Host | Intel Core i7-13700H (6P + 8E cores, 20 threads), 32 GB RAM, Windows 11 Pro 26300 |
-| Containers | Docker 29.5 (Rancher Desktop, WSL2 VM). Backend limited to `cpus: 4`, `mem_limit: 2g` unless stated |
-| Java | Temurin 25.0.4.1 (host JMH), 25.0.5.1 / 17.0.21.1 (Spring images), 25.0.4.1 (WildFly 42 image) |
-| .NET | 10.0.15 (host BDN and image), 11.0.0 (image) |
-| Data | 100,000 products, same seed, `snapshot` cache and `journal` sync unless stated |
-| Upstream | Python mock, 100 / 200 / 300 ms fixed delays, HTTP/1.1 keep-alive, TCP_NODELAY |
-| Load | k6 `constant-arrival-rate`, k6 in a container on the Compose network, warm-up 10 s (30 s for ≥ 1,000 req/s), measured 30 s |
-| Isolation | one backend running at a time; unrelated idle containers of another project were present on the host |
+| Host | Intel Core i7-13700H (6 P + 8 E cores, 20 threads), 32 GB RAM, Windows 11 Pro 26300 |
+| Containers | Docker 29.5 (Rancher Desktop, WSL2). Backend limited to `cpus: 4`, `mem_limit: 2g` unless stated. Unrelated idle containers of another project were running |
+| Java | Temurin 25.0.4.1 (host JMH); images 25.0.5.1, 21.0.13.1, 17.0.21.1 (Spring), 25.0.4.1 (WildFly 42) |
+| .NET | 10.0.15 (host BDN, image), 11.0.0 (image) |
+| Data | 100,000 products; `snapshot` cache and `journal` sync unless stated |
+| Upstream mock | asyncio, 100 / 200 / 300 ms, HTTP/1.1 keep-alive (final version; see F6/F8) |
+| Load | k6 `constant-arrival-rate` in a container on the Compose network; warm-up 10 s (30 s at ≥ 1,000 req/s), measured 30 s; the suite waits until the backend has drained before each run; up to 5 repetitions |
+| Metadata | each run's `environment.json` records the git commit, dirty files, image IDs, workload and repetitions |
 
-Raw data:
+### Raw data and which run supersedes which
 
-| Data set | Location |
-|---|---|
-| JMH (cache + engineering) | [runs/20261126T194918342533Z](runs/20261126T194918342533Z/REPORT.md) |
-| BenchmarkDotNet (.NET 10) | [bdn-runs/net10/results](bdn-runs/net10/results/) |
-| k6 run 1: Spring variants (virtual, Java 17, cache strategies, event-inline) | [http-runs/20261126T202650Z](http-runs/20261126T202650Z/REPORT.md) |
-| k6 run 2: baselines for all three editions, .NET 11, CPU quotas (improved harness) | [http-runs/20261126T222721Z](http-runs/20261126T222721Z/REPORT.md) |
-
-Run 1 is used only for the Spring variant phases. Its Jakarta/.NET rows are superseded by run 2. In run 1, those phases suffered from harness problems that were fixed before run 2: queue spill-over after the saturation test, Nagle delay in the mock, and too short a JIT warm-up for WildFly.
+| Data set | Content | Status |
+|---|---|---|
+| [runs/20261126T194918342533Z](runs/20261126T194918342533Z/REPORT.md) | JMH cache + engineering kernels | valid |
+| [bdn-runs/net10](bdn-runs/net10/results/) | BenchmarkDotNet CPU + reservation | valid |
+| [http-runs/20261126T202650Z](http-runs/20261126T202650Z/REPORT.md) | run 1: Spring variants (cache strategies, Java 17, virtual, event-inline) | valid for those rows; its Jakarta/.NET rows were harness-contaminated (queue spill-over, Nagle, short warm-up) |
+| [http-runs/20261126T222721Z](http-runs/20261126T222721Z/REPORT.md) | run 2: baselines for all editions, .NET 11, CPU quotas, correctness probes | valid; I/O rows superseded by v4 |
+| [http-runs/20261127T003011Z](http-runs/20261127T003011Z/REPORT.md) | v2: Spring 5× repetitions | valid except `io-blocking-400rps` (threaded mock, **superseded** by v4) |
+| [http-runs/20261127T011057Z](http-runs/20261127T011057Z/REPORT.md) | v2/v3: Jakarta/.NET repetitions, DB pools, events, DI, pinning, Redis, ownership, failure, staleness | valid except `io-blocking-async-*` rows (superseded) |
+| [http-runs/20261127T021849Z](http-runs/20261127T021849Z/REPORT.md) | v4: Spring Java 25 platform/virtual I/O (asyncio mock) | valid; run stopped later by host standby |
+| [http-runs/20261127T063929Z](http-runs/20261127T063929Z/REPORT.md) | v4: Java 17, Jakarta I/O, .NET 10/11 I/O | valid except the Jakarta saturation phase (before F9) |
+| [http-runs/20261127T074359Z](http-runs/20261127T074359Z/REPORT.md) | v4: Jakarta saturation after F9 | valid |
 
 ---
 
 ## 3. Results by lab
 
-### 3.1 Lab 01 — Product cache
+### 3.1 Lab 01 — product cache ([details](../labs/01-product-cache/README.md))
 
-**JMH, 100K products** ([details](../labs/01-product-cache/README.md#7-measured-results))
+| Strategy (JMH, 100K) | read-only ops/s | mixed: reader ops/s | mixed: writer batches/s |
+|---|---:|---:|---:|
+| synchronized | 4.62 M ± 0.46 M | 1.49 M | 902 K |
+| concurrent | 62.8 M ± 4.8 M | 34.3 M | 615 K |
+| **snapshot** | **88.1 M ± 7.2 M** | **43.0 M** | **33.4** |
+| caffeine | 48.0 M ± 17.3 M | 43.2 M | 626 K |
 
-| Strategy | read-only, 4 threads (ops/s) | mixed: reader ops/s | mixed: writer batches/s | consistency |
-|---|---:|---:|---:|---|
-| synchronized | 4.62 M ± 0.46 M | 1.49 M | 902 K | atomic pages |
-| concurrent | 62.8 M ± 4.8 M | 34.3 M | 615 K | per key |
-| **snapshot** | **88.1 M ± 7.2 M** | **43.0 M** | **33.4** | atomic pages |
-| caffeine | 48.0 M ± 17.3 M (noisy) | 43.2 M | 626 K | per key |
-
-**HTTP, same snapshot strategy, 4 CPUs (run 2)**
-
-| Edition | `catalog-get` 2,000/s achieved | p50 / p95 / p99 (ms) | CPU | `catalog-page` 50/s p50 / p99 (ms) | page CPU | memory |
-|---|---:|---|---:|---|---:|---:|
-| Spring Boot (Java 25) | 1,999.8 | 0.69 / 1.62 / 8.07 | 89% | 6.2 / 12.1 | 45% | ~450–550 MiB |
-| Jakarta EE (WildFly 42) | **1,206.6** (23,135 dropped) | 754 / 1,187 / 1,501 | **453%** | 8.5 / 15.0 | 49% | ~630 MiB |
-| ASP.NET Core (.NET 10) | 1,999.9 | 1.00 / 9.38 / 37.8 | 171% | **47.4 / 97.6** | **261%** | ~90–330 MiB |
-| ASP.NET Core (.NET 11) | 1,999.9 | 0.93 / 17.5 / 48.1 | 164% | – | – | ~110–160 MiB |
-
-Strategy comparison over HTTP (Spring, run 1): single-key reads are dominated by HTTP overhead, so the strategies are indistinguishable within noise. `synchronized` serializes page requests: p99 121 ms vs 16–20 ms for the others.
-
-Notes: .NET pages copy an `ImmutableDictionary` (a tree) to an array on every request before sorting, which costs 5× Java's page CPU. WildFly needs a long JIT warm-up. In a separate warmed-up sweep it held 1,000 req/s at p50 1.4 ms and 2,000 req/s at p50 29 ms / p99 363 ms; under the suite's warm-up it saturated. The root cause of its higher CPU per request was not profiled ([ROADMAP](../docs/ROADMAP.md)).
-
-### 3.2 Lab 02 — Concurrency and stock reservation ([details](../labs/02-concurrency/README.md))
-
-| Edition | unsafe: incorrect of 30 | max accepted (stock 100) | lock / atomic incorrect | HTTP 50 exp/s atomic p50 / p99 (ms) | lock p50 / p99 (ms) |
-|---|---:|---:|---|---|---|
-| Spring Boot | 21 | 150 | 0 / 0 | 1.62 / 3.53 | 1.75 / 3.28 |
-| Jakarta EE | 29 | 144 | 0 / 0 | 4.15 / 8.34 | 4.35 / 8.68 |
-| ASP.NET Core | 11 | 185 | 0 / 0 | 0.87 / 1.85 | 0.93 / 2.33 |
-
-| Kernel (stock 1,000, 2,000 attempts) | atomic | lock |
-|---|---:|---:|
-| JMH, Java 25 (32-thread pool) | 0.81 ± 0.11 ms | 0.86 ± 0.10 ms |
-| BDN, .NET 10 (`Parallel.For`) | 0.167 ± 0.005 ms | 1.039 ± 0.028 ms |
-
-### 3.3 Lab 03 — Async I/O, 50 req/s ([details](../labs/03-async-io/README.md))
-
-| Edition | blocking p50 / p99 | sequential-async p50 / p99 | concurrent p50 / p99 |
+| HTTP `catalog-get` 2,000 req/s, 5 runs | achieved req/s | p50 ms | p99 ms |
 |---|---|---|---|
-| Spring Boot | 605.9 / 612.9 | 604.8 / 607.7 | 302.9 / 305.2 |
-| Jakarta EE | 606.0 / 610.5 | 605.5 / 609.0 | 303.4 / 305.9 |
-| ASP.NET Core | **100% timeout** (sync-over-async, CPU 1.5%) | 603.7 / 607.0 | 302.5 / 304.5 |
+| Spring Boot | 1,999.9 [1,974 – 1,999.9] | 0.62 [0.48 – 0.79] | 5.2 [1.5 – 104.9] |
+| Jakarta EE | 1,987.5 [1,532 – 1,993] | 1.65 [1.43 – 562.9] | 218 [106 – 1,131] |
+| ASP.NET Core | 1,999.9 [1,989 – 2,000] | 0.93 [0.81 – 0.94] | 35.5 [21.4 – 54.4] |
 
-Theory: 600 ms sequential, 300 ms concurrent. All latencies in ms.
+Paging (50 req/s): Spring p50 6.2 ms, Jakarta 8.5 ms, .NET 47.4 ms (261 % CPU). Staleness with a 10 s journal refresh: 3.2–8.3 s, median 4.9–5.4 s on all editions.
 
-### 3.4 Lab 04 — Thread models at 400 req/s blocking I/O ([details](../labs/04-virtual-threads/README.md))
+### 3.2 Lab 02 — concurrency ([details](../labs/02-concurrency/README.md))
 
-| Configuration | achieved req/s | p50 (ms) | p99 (ms) | dropped | failed | run |
-|---|---:|---:|---:|---:|---:|---|
-| Spring, Java 25, platform | 268.1 | 4,499 | 8,002 | 1,810 | 0% | 1 |
-| Spring, Java 25, platform (repeat) | 322.4 | 2,507 | 4,115 | 1,016 | 0% | 2 |
-| Spring, Java 17, platform | 267.5 | 4,484 | 7,995 | 1,837 | 0% | 1 |
-| **Spring, Java 25, virtual** | **392.1** | **605** | **624** | **0** | 0% | 1 |
-| Jakarta, WildFly (64 workers) | 210.0 | 10,000 | 10,001 | 3,599 | 88% | 2 |
-| .NET 10 (sync-over-async) | 204.1 | – | 10,001 | 3,837 | 100% | 2 |
-| .NET 11 (sync-over-async) | 204.4 | 2,854 | 10,001 | 3,823 | 100% | 2 |
+| Edition | unsafe wrong runs | lock / atomic wrong | kernel atomic vs lock |
+|---|---:|---|---|
+| Spring Boot | 21 / 30 | 0 / 0 | JMH: 0.81 vs 0.86 ms |
+| Jakarta EE | 29 / 30 | 0 / 0 | (same Java kernel) |
+| ASP.NET Core | 11 / 30 | 0 / 0 | BDN: 0.167 vs 1.039 ms |
 
-Theoretical ceilings (threads / 0.6 s): Tomcat 200 → 333 req/s; WildFly 64 → 107 req/s.
+### 3.3 Lab 03 — async I/O, 50 req/s, 5 runs, p50 ms ([details](../labs/03-async-io/README.md))
 
-### 3.5 Lab 05 — CPU parallelism ([details](../labs/05-cpu-parallelism/README.md))
-
-Host microbenchmarks (rounds = 100): JMH 22.4 → 13.3 → 7.3 → 5.6 ms for 1/2/4/8 workers (4.0×); BDN 27.5 → 14.2 → 8.7 → 5.3 ms (5.2×).
-
-Containers, server-side median ms (rounds = 500):
-
-| Quota | Spring seq → best | Jakarta seq → best | .NET 10 seq → best |
-|---:|---|---|---|
-| 1 CPU | 122 → 103 (4 w) | 128 → 109 (4 w) | 126 → 108 (2 w) |
-| 2 CPU | 126 → 64 (2 w) | 168 → 68 (2 w) | 143 → 77 (2 w) |
-| 4 CPU | 114 → 27 (8 w) | 114 → 27 (8 w) | 122 → 25 (8 w) |
-| 8 CPU | 132 → 29 (8 w) | 131 → 36 (8 w) | 159 → 27 (8 w) |
-
-Checksum `-980176603291609351` identical in all 13 configurations, Java and .NET.
-
-### 3.6 Lab 06 — DI lifetimes, 50 req/s ([details](../labs/06-dependency-injection/README.md))
-
-| Edition | request-scoped p50 / p95 / p99 (ms) | shared p50 / p95 / p99 (ms) | CPU request / shared |
+| Edition | blocking | sequential-async | concurrent |
 |---|---|---|---|
-| Spring Boot | 2.65 / 6.65 / 8.38 | 1.60 / 2.62 / 2.99 | 20% / 6% |
-| Jakarta EE | 3.60 / 8.28 / 12.44 | 1.59 / 2.14 / 2.72 | 64% / 8% |
-| ASP.NET Core | 5.77 / 42.98 / 61.98 | 0.79 / 1.48 / 2.16 | 62% / 4% |
+| Spring Boot | 605.8 [605.7 – 607.1] | 605.6 [605.5 – 605.8] | 303.1 [302.7 – 303.4] |
+| Jakarta EE | 606.8 [605.8 – 607.6] | 605.8 [605.3 – 607.1] | 303.0 [303.0 – 303.0] |
+| ASP.NET Core 10 | sync-over-async: run 1 84.6 % failed; runs 2–5 604.5 | 604.1 [604.1 – 604.2] | 302.1 [302.0 – 302.1] |
 
-Identity probe: shared → same id, request → new id, on all three editions.
+### 3.4 Lab 04 — threads and runtimes, 400 req/s ([details](../labs/04-virtual-threads/README.md))
 
-### 3.7 Lab 07 — Domain events, 200 req/s on one product row ([details](../labs/07-domain-events/README.md))
-
-| Edition / mode | achieved req/s | p50 | p95 | p99 | failed |
-|---|---:|---:|---:|---:|---:|
-| Spring `direct` (run 2) | 152.1 | 3,948 | 4,599 | 4,630 | 0% |
-| Spring `direct` (run 1) | 199.6 | 36.6 | 221.9 | 273.0 | 0% |
-| Spring `event` (async after commit, run 2) | 200.0 | 2.73 | 4.41 | 6.48 | 0% |
-| Spring `event-inline` (negative example, run 1) | 67.8 | 10,000 | 10,001 | 10,001 | **100%** |
-| Jakarta `direct` / `event` (in-memory) | 200 / 200 | 1.52 / 2.41 | 2.32 / 4.65 | 3.07 / 10.0 | 0% |
-| .NET `direct` / `event` (in-memory) | 200 / 200 | 0.86 / 0.79 | 1.51 / 1.31 | 1.92 / 1.63 | 0% |
-
-### 3.8 Lab 08 — Stampede and capacity ([details](../labs/08-resource-management/README.md))
-
-| Edition | loads without single-flight (N = 32 / 100) | with single-flight | pool N = 32: peak / rejected | N = 100: peak / rejected |
+| Configuration | achieved req/s | p50 | failed | runs |
 |---|---|---|---|---|
-| Spring Boot | 32 / 32 | 1 / 1 | 5 / 12 | 5 / 51–53 |
-| Jakarta EE | 8 / 8 | 1 / 1 | 5 / 0–3 | 5 / 4–8 |
-| ASP.NET Core | 32 / 100 | 1 / 1 | 5 / 12 | 5 / 80 |
+| Spring, Java 17, platform | 324.2 [319.5 – 324.6] | 2,434 ms | 0 % | 5 |
+| Spring, Java 25, platform | 324.2 [323.9 – 324.3] | 2,431 ms | 0 % | 5 |
+| **Spring, Java 25, virtual** | **392.1 [391.8 – 392.1]** | **606 ms** | 0 % | 5 |
+| WildFly, Undertow worker | 213.4 (≈ 40 successful) | 10 s timeout | 81 % | 3 |
+| WildFly, default managed executor | 204.8 (0 successful) | 10 s | 100 % | 3 |
+| **WildFly, virtual managed executor (`maxAsync=2000`)** | **392.1 [392.0 – 392.1]** | **606 ms** | 0 % | 3 |
+| .NET 10 / 11, sync-over-async | run 1: 100 % failed; run 3: 392 req/s, 0 % | – | bistable | 3 each |
+
+Pinning (100 tasks × 50 ms, 4 carriers): JDK 21 `synchronized` 1,254.5 ms, `ReentrantLock` 50 ms; JDK 25 51 / 50 ms.
+
+### 3.5 Lab 05 — CPU ([details](../labs/05-cpu-parallelism/README.md))
+
+Host: JMH 22.4 → 5.6 ms (4.0×) and BDN 27.5 → 5.3 ms (5.2×) from 1 to 8 workers. Docker quota (median of 3 editions, best configuration): 1 CPU ≤ 1.2×, 2 CPUs ≈ 2× with 2 workers, 4 CPUs ≈ 4.2× with 8 workers, 8 CPUs ≈ 4.6×. Checksum identical in all 13 configurations and both runtimes.
+
+### 3.6 Lab 06 — dependency injection ([details](../labs/06-dependency-injection/README.md))
+
+| Check | Spring | Jakarta | .NET |
+|---|---|---|---|
+| singleton "current user": wrong / 600 | 586 | 568 | 582 |
+| request-scoped: wrong / 600 | 0 | 0 | 0 |
+| captive: distinct ids in 5 calls (captured / fresh) | 1 / 5 | 1 / 5 | 1 / 5 |
+| ownership: cleaned up of 100 (wrong / right) | 0 / 100 | 0 / 100 | 0 / 100 |
+| request scope in background task | – | `ContextNotActiveException` / ok with `@ActivateRequestContext` | – |
+| CPU per-request payload vs singleton (50 req/s) | 20 % / 6 % | 64 % / 8 % | 62 % / 4 % |
+
+### 3.7 Lab 07 — events ([details](../labs/07-domain-events/README.md))
+
+| Edition / mode (200 req/s, one row) | achieved req/s | p50 | failed |
+|---|---|---|---|
+| Spring direct (5 runs) | 129.8 [93.2 – 143.3] | 5,172 ms [1,564 – 8,658] | 0 [0 – 24.8] % |
+| Spring event (5 runs) | 200.0 | 2.73 ms [1.95 – 3.20] | 0 % |
+| Spring event-inline | 67.8 | timeouts | 100 % |
+| Jakarta direct / event / event-inline | 200 / 200 / 200 | 14.5 / 3.0 / 7.7 ms | 0 % |
+| .NET direct / event (outbox) | 178.1 / 190.9 | 1,676 / 658 ms | 0 % |
+
+Correctness: 200/200 audits and 0 visible rollbacks (Spring, .NET; Jakarta in isolation). Handler failure: Spring/Jakarta event 0/10 audits (lost), .NET outbox 10/10.
+
+### 3.8 Lab 08 — resources ([details](../labs/08-resource-management/README.md))
+
+| Real pool (successful req/s) | pool 5 @ 100 | pool 5 @ 300 | pool 20 @ 300 |
+|---|---:|---:|---:|
+| Spring (Hikari, 1 s) | 99.9 | 162 (23 % 503, p50 3.5 s) | 299.7 |
+| Jakarta (WildFly, 30 s) | 99.9 | 162 (0 % failed, p50 6.1 s) | 299.7 |
+| .NET (MySqlConnector, 1 s) | 99.9 | 158 (44 % 503, p50 1.0 s) | 299.7 |
+
+Stampede, 100 requests: in-process 32 / 8 / 100 loads without coordination, 1 with single-flight. Redis, 2 instances: `none` 50–100, `local` 2, `distributed` 1. Redis hit p50 1.00 ms vs in-process 0.54 ms; stale read across instances until invalidation; Redis down → DB fallback after 511 ms.
 
 ---
 
 ## 4. Defects found by benchmarking
 
-Running the benchmarks surfaced defects that the unit tests had not found. All are fixed and listed in [VALIDATION_STATUS.md](../docs/VALIDATION_STATUS.md):
-
-- Spring connection-pool deadlock under concurrent domain events (F4). Kept as the documented negative mode `event-inline`.
-- Jakarta CDI deployment failure (F2) and wrong state read through CDI proxies (F3).
-- JMH build configuration clash with the Spring Boot parent (F1); .NET 11 multi-targeting breaking BenchmarkDotNet (F5).
-- Benchmark harness: mock upstream backlog and Nagle delay (F6); saturation spill-over between experiments, insufficient JIT warm-up, and Windows `localhost` → IPv6 fallback delays in the orchestrator. All fixed in [`tools/run_http_suite.py`](../tools/run_http_suite.py).
+Benchmarks and probes found defects that unit tests had missed. All are fixed and listed in [VALIDATION_STATUS.md](../docs/VALIDATION_STATUS.md): the Hikari deadlock (F4), CDI proxy defects (F2, F3), the bounded WildFly virtual executor (F9), and harness defects that would otherwise have been reported as backend results (F6 Nagle, F8 threaded mock, suite spill-over, IPv6 `localhost` delays, host standby).
 
 ## 5. Limitations
 
-- One workstation, mostly one run per configuration. The two repeated Spring baselines differ by up to 2× near saturation (Lab 04, Lab 07), and CPU timings show ±20% noise. Treat differences under ~20% as noise.
-- Docker CPU quotas on a hybrid-core laptop are not pinned cores. k6 and the mock share the host with the backend.
-- Container CPU/memory figures are a single `docker stats` sample per run.
-- Cross-framework rows compare these lab implementations (different JSON stacks, thread pools and code paths), not the frameworks in general.
-- Not measured: Redis, the observability stack, and the advanced variants listed in [ROADMAP.md](../docs/ROADMAP.md).
+- One workstation; up to 5 repetitions per configuration; single `docker stats` CPU samples. Treat differences below ~20 % as noise unless a repetition range shows otherwise.
+- Docker CPU quotas on a hybrid-core laptop are not pinned cores. k6, the mock and MySQL share the host.
+- Cross-framework rows compare these implementations (different JSON stacks, pools and code paths), not the frameworks in general.
+- Open, unexplained observations: Jakarta `direct` handling the hot row better than Spring and .NET; why run 1's virtual-thread result was not affected by the threaded mock; WildFly's higher CPU per catalogue request.
+- Not measured: agent/SDK overhead, Redis cluster behaviour, Jakarta/.NET Redis, more than one outbox dispatcher.

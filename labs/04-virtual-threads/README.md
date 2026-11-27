@@ -1,89 +1,147 @@
 # Lab 04 — Platform threads, virtual threads and runtime versions
 
-> Use case: **"The product-detail endpoint calls three slow upstream services with blocking code. What happens when traffic grows, and does a newer JVM or virtual threads help?"**
+> **Use case:** the product-detail endpoint calls three slow services with blocking code. Traffic grows to 400 requests per second. Does a newer JVM help, do virtual threads help, and what happens on Jakarta EE and .NET?
 
-## 1. Scenario
+## 1. Problem and why it matters
 
-`GET /lab/io/blocking` calls `/product` (100 ms), `/inventory` (200 ms) and `/pricing` (300 ms) on the mock upstream **one after the other, with blocking calls**. A request therefore holds its server thread for ≈ 600 ms while doing almost no CPU work.
+Thread-per-request with blocking I/O is the simplest programming model, but a platform thread is an OS thread: expensive, and limited by the server's pool. When requests mostly *wait*, the pool runs out long before the CPU does. Virtual threads (Java 21+) promise to keep the simple model without the limit, and runtime upgrades are often expected to "make it faster". This lab separates the two effects.
 
-By Little's law, sustaining *λ* requests/s with a residence time of *W* = 0.6 s needs *L = λ·W* requests in flight. At 400 req/s that is **≈ 240 concurrent requests, each pinning one thread**.
+## 2. Concepts
 
-| Server | Request threads by default |
+| Concept | Meaning |
 |---|---|
-| Spring Boot / Tomcat, platform | `server.tomcat.threads.max` = **200** |
-| Spring Boot / Tomcat, virtual (`spring.threads.virtual.enabled=true`) | one new virtual thread per request (no fixed cap) |
-| WildFly 42 / Undertow | worker ("default task") pool = 16 × CPUs = **64** at 4 CPUs |
-| ASP.NET Core / Kestrel | .NET ThreadPool: starts with ≈ CPU-count threads, injects more slowly when threads block |
+| Little's law | requests in flight L = throughput λ × time in system W. At 400 req/s × 0.6 s, **240 requests** are blocked at any moment |
+| Platform thread | 1:1 with an OS thread; a blocking call parks it |
+| Virtual thread | a JVM-scheduled thread; a blocking call *unmounts* it and frees the carrier (an OS thread of a small ForkJoinPool) |
+| Pinning | a virtual thread that cannot unmount (JDK 21: blocking inside `synchronized`) keeps its carrier busy |
+| ThreadPool starvation (.NET) | blocked pool threads wait for continuations that themselves need pool threads |
 
-Hypothesis: the platform servers cap throughput at *threads / 0.6 s* (Tomcat ≈ 333 req/s, WildFly ≈ 107 req/s). Virtual threads remove the cap because a blocked virtual thread releases its carrier. Java 17 vs Java 25 should **not** matter for this workload, because the bottleneck is the thread count, not the JIT or GC.
+```mermaid
+flowchart LR
+  subgraph P["Platform threads (Tomcat, 200)"]
+    q[(accept queue)] --> t1[thread 1 ⏸ 600 ms] & t2[thread … ⏸] & t200[thread 200 ⏸]
+  end
+  subgraph V["Virtual threads (Java 21+)"]
+    v1[vthread 1] & v2[vthread …] & v240[vthread 240] -->|unmounted while waiting| c[4 carrier threads]
+  end
+```
 
-## 2. Implementation
+Theoretical ceilings for 600 ms of blocking per request: Tomcat 200 threads / 0.6 s ≈ **333 req/s**; WildFly Undertow workers (16 × 4 CPUs = 64) / 0.6 s ≈ **107 req/s**; virtual threads: no thread ceiling.
 
-| Edition | Code | Thread-model switch |
+## 3. Incorrect and correct implementations
+
+| Variant | Where | Character |
 |---|---|---|
-| Spring Boot | [EngineeringController](../../implementations/spring-boot/app/src/main/java/de/backendlab/labs/EngineeringController.java) → `Experiments.io(…, "blocking", …)` uses `HttpClient.send` on the Tomcat request thread | `LAB_VIRTUAL_THREADS=true/false`; `JAVA_VERSION=17/25` selects the runtime image (same jar, bytecode release 17) |
-| Jakarta EE | [Endpoints](../../implementations/jakarta-ee/src/main/java/de/backendlab/ee/Endpoints.java) – same kernel on an Undertow worker thread | none (a managed virtual-thread executor is not configured, see ROADMAP) |
-| ASP.NET Core | [Program.cs](../../implementations/aspnet-core/Lab.Api/Program.cs) – `GetStringAsync(...).GetAwaiter().GetResult()` (**sync-over-async**) | `DOTNET_VERSION=10.0/11.0` |
+| blocking calls on platform request threads | Spring `LAB_VIRTUAL_THREADS=false`, WildFly worker threads (`/lab/io/blocking`) | correct, but capacity = pool / latency |
+| blocking calls on virtual threads | Spring `LAB_VIRTUAL_THREADS=true` (Tomcat runs each request on a new virtual thread) | correct and scales for I/O |
+| blocking chain on a container-managed executor | Jakarta `/lab/io/blocking-async?executor=default\|virtual` (Concurrency 3.1 `@ManagedExecutorDefinition(virtual=true)`) | async JAX-RS response; frees the Undertow worker |
+| sync-over-async ✖ | .NET `/lab/io/blocking` (`GetAwaiter().GetResult()`) | anti-pattern: ThreadPool starvation |
+| blocking inside `synchronized` on virtual threads | Spring `/lab/threads/pinning?mode=synchronized` | pins carriers on JDK 21, fine on JDK 24+ |
 
-`GET /lab/threads/info` shows which runtime and thread type served the request. Recorded values: `http-nio-…-exec-2, virtual=false, 25.0.5.1`; `tomcat-handler-1, virtual=true, 25.0.5.1`; `exec-2, virtual=false, 17.0.21.1`; WildFly `default task-2, 25.0.4.1`; .NET `10.0.15, processors=4, threadPool=5`.
+Code: [EngineeringController](../../implementations/spring-boot/app/src/main/java/de/backendlab/labs/EngineeringController.java), [Endpoints](../../implementations/jakarta-ee/src/main/java/de/backendlab/ee/Endpoints.java), [Api](../../implementations/jakarta-ee/src/main/java/de/backendlab/ee/Api.java) (executor definition), [Program.cs](../../implementations/aspnet-core/Lab.Api/Program.cs).
 
-## 3. Benchmarks
+## 4. Framework and runtime differences
 
-| Experiment | Load | Purpose |
-|---|---|---|
-| `io-blocking` | 50 req/s, 30 s | below the thread limit: latency should equal the upstream chain (~605 ms) |
-| `io-blocking-400rps` | 400 req/s, 30 s (k6 allowed up to 3,000 VUs) | above the platform thread limit: shows queueing, dropped iterations, timeouts |
-| `catalog-get` | 2,000 req/s | sanity check that the thread model does not hurt a CPU-light endpoint |
+| | Spring Boot | Jakarta EE (WildFly 42) | ASP.NET Core |
+|---|---|---|---|
+| request threads | Tomcat pool (200) or virtual threads | Undertow worker pool (64 at 4 CPUs) | Kestrel + ThreadPool |
+| virtual threads | `spring.threads.virtual.enabled` | managed executor with `virtual=true` (verified: tasks run on `VirtualThread[#…]/runnable@ForkJoinPool-1-worker-…`) | not applicable (async/await is the model) |
+| runtime versions | same jar on Java 17 and Java 25 images | Java 25 | .NET 10 and .NET 11 images |
 
-All backends were limited to 4 CPUs / 2 GB. The suite runs the saturation test last in each phase and waits until the backend has drained its queue before running anything else.
+**Verification of actual execution** (`/lab/threads/info`, `/lab/threads/executor`): Spring platform `http-nio-…-exec-3, virtual=false`; Spring virtual `tomcat-handler-2, virtual=true`; Java 17 `runtime 17.0.21.1`; WildFly managed virtual executor `VirtualThread[#270]/runnable@ForkJoinPool-1-worker-1, virtual=true`, default executor `EE-ManagedExecutorService-default-Thread-1, virtual=false`; .NET `runtime 10.0.15` / `11.0.0`.
 
-## 4. Results — Spring Boot
+## 5. Correctness tests
 
-Run [20261126T202650Z](../../reports/http-runs/20261126T202650Z/REPORT.md). Latency in ms.
+Every request must return three ordered upstream bodies (k6 JSON check; `compare_http.py`). The pinning probe checks elapsed time against the theory: ⌈tasks / carriers⌉ × sleep when pinned, ≈ sleep otherwise.
 
-| Configuration | `io-blocking-400rps` achieved / target | p50 | p95 | p99 | dropped | failed | container CPU |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| Java 25, platform threads | 268 / 400 | 4,499 | 7,734 | 8,002 | 1,810 | 0% | 91% |
-| Java 17, platform threads | 268 / 400 | 4,484 | 7,749 | 7,995 | 1,837 | 0% | 109% |
-| **Java 25, virtual threads** | **392 / 400** | **605** | **613** | **624** | **0** | 0% | 98% |
+## 6. Benchmark methodology
 
-| Configuration | `io-blocking` 50/s p50 / p99 | `catalog-get` 2,000/s p50 / p99 |
-|---|---|---|
-| Java 25 platform | 605 / 609 | 1.02 / 79.2 |
-| Java 25 virtual | 605 / 607 | 0.43 / 1.30 |
-| Java 17 platform | – | 0.68 / 70.5 |
+k6 constant arrival **400 req/s** on the blocking endpoint for 30 s, one 10 s warm-up, then **5 measured repetitions** (Jakarta/.NET saturation: 3), 4 CPUs / 2 GB, VUs up to 3,000, 10 s client timeout. The upstream mock is a single-threaded asyncio server, so it cannot become the bottleneck ([why](../../reports/investigations/2026-11-27-anomalies.md#1-virtual-threads-slower-than-platform-threads-at-400-reqs-lab-04)). The suite waits until the backend has drained its queue before the next run.
 
-Repeat of the platform baseline in run [20261126T222721Z](../../reports/http-runs/20261126T222721Z/REPORT.md) (30 s warm-up on high-rate tests): **322 / 400 req/s, p50 2,507 ms, p99 4,115 ms, 1,016 dropped**. The ceiling sits closer to the theoretical 333 req/s this time. The difference between the two runs shows how much a single run near saturation can move.
+## 7. Results
 
-## 4b. Results — Jakarta EE and ASP.NET Core (same run, same load)
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab04-threads-dark.svg"><img alt="Bar charts for Spring Boot at 400 requests per second of blocking I/O: Java 17 and Java 25 with platform threads reach about 324 requests per second at about 2.4 s median latency; Java 25 virtual threads reach 392 requests per second at 606 ms." src="../../docs/images/lab04-threads-light.svg"></picture>
 
-| Configuration | achieved / target | p50 | p99 | failed (10 s timeout) | container CPU |
-|---|---:|---:|---:|---:|---:|
-| WildFly 42, 64 worker threads | 210 / 400 | 10,000 | 10,001 | **88%** | 47% |
-| .NET 10, sync-over-async | 204 / 400 | – | 10,001 | **100%** | 4% |
-| .NET 11, sync-over-async | 204 / 400 | 2,854 | 10,001 | **100%** | 2% |
+### 7.1 Spring Boot, 400 req/s blocking I/O, 5 runs — median [min – max]
 
-- **WildFly** hits the ceiling earliest: 64 worker threads / 0.6 s ≈ 107 req/s. The queue grows until requests exceed the 10 s client timeout.
-- **.NET** fails completely, with the CPU almost idle. This isn't a thread *limit* but ThreadPool **starvation**: blocked threads wait for continuations that need the same pool ([Lab 03](../03-async-io/README.md) shows the same at only 50 req/s). .NET 11 behaves like .NET 10. The fix in .NET is `await`, not more threads.
+| Configuration | achieved req/s | p50 ms | p99 ms | dropped | failed |
+|---|---|---|---|---|---|
+| Java 17 · platform | 324.2 [319.5 – 324.6] | 2,434 [2,411 – 2,479] | 4,019 [3,982 – 4,036] | 955 [943 – 1,135] | 0 % |
+| Java 25 · platform | 324.2 [323.9 – 324.3] | 2,431 [2,419 – 2,436] | 4,015 [4,001 – 4,018] | 953 [951 – 964] | 0 % |
+| **Java 25 · virtual** | **392.1 [391.8 – 392.1]** | **606 [606 – 607]** | **631 [616 – 714]** | **0** | 0 % |
 
-## 5. Interpretation
+At 50 req/s (below the ceiling) all three behave the same: p50 605.8 ms platform, 606.9 ms virtual.
 
-- **The platform-thread ceiling is exactly where Little's law puts it.** 200 Tomcat threads / 0.6 s ≈ 333 req/s in theory. Measured: 268 req/s, with a 4.5 s median, as requests wait in Tomcat's accept queue. k6 had to drop 1,810 iterations because it ran out of its 3,000 VUs. No request failed; they were all just late, and that is the dangerous part.
-- **Virtual threads remove the ceiling without any code change.** 392 req/s at the target rate, with latency equal to the upstream chain (605 ms p50, 624 ms p99), at about the same CPU. The JDK parks the virtual thread on the blocking socket read and reuses the carrier thread.
-- **Java 17 vs Java 25 makes no difference here** (268 vs 268 req/s, near-identical percentiles). Runtime improvements can't fix a thread-count bottleneck. That is the control experiment showing the gain comes from the thread model, not from the JDK version.
-- **Virtual threads are not free speed.** They don't make the upstream faster (p50 is still 605 ms), and they don't add CPU. They also remove natural backpressure: with 240+ requests in flight, a downstream with its own limits (a DB pool, a rate-limited API) becomes the next bottleneck (see [Lab 08](../08-resource-management/README.md)). The catalog p99 improvement on the virtual-thread run (1.3 ms vs 79 ms) is a single-run observation. The platform runs' tails vary between runs, so don't treat it as an effect of virtual threads without repeating it.
+Sources: [20261127T021849Z](../../reports/http-runs/20261127T021849Z/REPORT.md) (Java 25 platform and virtual), [20261127T063929Z](../../reports/http-runs/20261127T063929Z/REPORT.md) (Java 17). These replace the v2 repetition, which measured the old threaded mock upstream and **must not be quoted** ([investigation](../../reports/investigations/2026-11-27-anomalies.md)).
 
-## 6. Trade-offs
+### 7.2 Jakarta EE and ASP.NET Core
+
+**Jakarta EE / WildFly 42, 400 req/s, 3 runs** — [20261127T074359Z](../../reports/http-runs/20261127T074359Z/REPORT.md) (after fix F9):
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab04-wildfly-virtual-dark.svg"><img alt="WildFly at 400 requests per second: worker thread about 40 successful requests per second, default managed executor 0, Concurrency 3.1 virtual executor 392 at 606 ms." src="../../docs/images/lab04-wildfly-virtual-light.svg"></picture>
+
+| Where the blocking chain runs | achieved req/s | **successful** req/s | p50 | failed |
+|---|---|---:|---|---|
+| Undertow worker thread (`/lab/io/blocking`) | 213.4 [210.3 – 213.8] | ≈ 40 | 10 s (client timeout) | 81.3 [81.3 – 88.6] % |
+| default managed executor (`executor=default`) | 204.8 [204.7 – 204.9] | 0 | 10 s | 100 % |
+| **virtual managed executor** (`executor=virtual`, `maxAsync=2000`) | **392.1 [392.0 – 392.1]** | **392** | **606 ms** | **0 %** |
+
+**ASP.NET Core, 400 req/s, sync-over-async, per run in order** — [20261127T063929Z](../../reports/http-runs/20261127T063929Z/REPORT.md):
+
+| Runtime | run 1 | run 2 | run 3 |
+|---|---|---|---|
+| .NET 10.0.15 | 100 % failed, CPU 1.9 % | 83.8 % failed | **0 % failed, 392 req/s, p50 605 ms** |
+| .NET 11.0.0 | 100 % failed, CPU 3.2 % | 17.8 % failed | **0 % failed, 392 req/s, p50 604 ms** |
+
+### 7.3 Pinning (100 virtual threads, each sleeps 50 ms inside its own lock; 4 carriers; median of 10)
+
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab04-pinning-dark.svg"><img alt="Grouped bars: on Java 21 synchronized takes 1,254 ms and ReentrantLock 50 ms; on Java 25 both take about 50 ms." src="../../docs/images/lab04-pinning-light.svg"></picture>
+
+| Runtime | `synchronized` | `ReentrantLock` | source |
+|---|---:|---:|---|
+| Java 21.0.13.1 | **1,254.5 ms** [1,254 – 1,256] | 50.0 ms [50 – 51] | [011057Z](../../reports/http-runs/20261127T011057Z/REPORT.md) `v2-pinning-j21` |
+| Java 25.0.5.1 | 51.0 ms [50 – 51] | 50.0 ms [50 – 54] | `v2-pinning-j25` |
+
+Theory: pinned = ⌈100 / 4⌉ × 50 ms = 1,250 ms; not pinned = 50 ms.
+
+## 8. Interpretation and trade-offs
+
+**Observations**
+1. Spring with platform threads stops at **324 req/s**, very close to 200 threads / 0.6 s = 333, with p50 2.4 s and ~950 dropped iterations per run. No request failed; they were all late.
+2. Virtual threads served the full load (**392 req/s** = all 12,000 requests; k6 divides by the 30 s window plus the ~0.6 s graceful stop) at the upstream latency (p50 606 ms) with 0 errors, in 5 of 5 runs. CPU was not the limit in either configuration.
+3. Java 17 and Java 25 with platform threads are indistinguishable (324.2 vs 324.2 req/s; p50 2,434 vs 2,431 ms).
+4. WildFly worker threads collapse far below their theoretical 107 req/s (≈ 40 successful req/s) because the server keeps processing requests whose client already timed out. With a container-managed **virtual** executor the same blocking code served 392 req/s, but only after `maxAsync` was set explicitly ([F9](../../reports/investigations/2026-11-27-anomalies.md#3-wildfly-managed-virtual-thread-executor-100--timeouts-at-400-reqs-lab-04)).
+5. .NET sync-over-async starved on every cold start and recovered on a warmed-up pool. .NET 10 and .NET 11 behaved the same.
+6. Pinning: JDK 21 serialized 100 virtual threads on 4 carriers inside `synchronized` (1,254 ms, theory 1,250 ms); JDK 25 did not (51 ms).
+
+**Explanations**
+- (1, 2) Little's law: 240 requests must be in flight. A 200-thread pool cannot hold them, so the rest wait in the accept queue. Virtual threads unmount while blocked in the socket read, so the number of in-flight requests is no longer bounded by OS threads.
+- (3) The limit is the thread count, not JIT or GC. A runtime upgrade cannot remove it.
+- (4) Overload without deadline propagation produces wasted work: requests that will time out still occupy threads. The default managed executor is a small platform pool and is even more limited.
+- (6) JEP 491 (JDK 24) lets virtual threads unmount while holding a monitor.
+
+**Conclusions**
+- For blocking I/O at high concurrency, change the **thread model** (virtual threads on Java, async on .NET), not the runtime version.
+- Virtual threads remove the thread ceiling, not other limits. Keep the downstream bounded (DB pool, Lab 08) and use timeouts end to end.
+- Check that the container really runs your work on virtual threads **and** with the concurrency you expect (F9).
 
 | Option | Good for | Watch out for |
 |---|---|---|
-| Platform thread pool | predictable concurrency limit = built-in backpressure | blocking I/O capacity = pool size / latency |
-| Virtual threads (Java 21+) | blocking-style code with high I/O concurrency | pinning (`synchronized` around blocking calls before JDK 24, native calls), unbounded concurrency hitting downstream limits, ThreadLocal-heavy libraries |
-| Async/reactive ([Lab 03](../03-async-io/README.md)) | maximum concurrency, explicit composition | code complexity, harder debugging |
-| .NET: never block on async | keeping the ThreadPool healthy | one `.Result` / `.GetAwaiter().GetResult()` on a hot path can starve the whole pool |
+| platform thread pool | predictable limit = backpressure | capacity = pool / latency; goodput collapse past the knee |
+| virtual threads | blocking-style code with many concurrent waits | pinning on JDK 21; unbounded concurrency hits downstream limits; container-managed executors may still bound tasks |
+| async/reactive | maximum concurrency, explicit composition | complexity; in .NET never block on tasks |
 
-## 7. Limitations
+## 9. Limitations
 
-- One run per configuration on a shared workstation.
-- No pinning stress test (e.g. blocking inside `synchronized` on JDK 21 vs 24+) and no managed virtual-thread executor for WildFly; see [ROADMAP.md](../../docs/ROADMAP.md).
-- Tomcat thread count was left at its default. Raising `server.tomcat.threads.max` would move the platform ceiling, which is itself a valid experiment.
+- One machine, Docker CPU quotas; the 400 req/s rate was not varied (no full capacity curve).
+- Tomcat's thread count was left at its default (200); raising it moves the platform ceiling.
+- The JDK `HttpClient` uses its own internal executor even for blocking `send()` (hundreds of platform worker threads were observed under virtual-thread load); a different HTTP client may behave differently.
+- The pinning experiment uses sleep inside `synchronized`; real pinning also comes from native calls and some library code.
+
+## 10. Use cases and interview questions
+
+- I/O-heavy APIs, gateways and aggregators written in blocking style; JDBC-heavy services (but see Lab 08: the pool still limits).
+- *What problem do virtual threads solve?* The thread ceiling for blocking I/O (Little's law).
+- *What don't they solve?* CPU-bound work (Lab 05), downstream limits (Lab 08), pinning on JDK 21.
+- *Does upgrading Java 17 → 25 help this workload?* No; the limit is the pool, not the JIT.
+- *What is the .NET equivalent?* async/await end to end; never block on tasks.

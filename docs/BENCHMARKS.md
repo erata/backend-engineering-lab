@@ -46,7 +46,10 @@ All experiments use the `constant-arrival-rate` executor: k6 sends requests at t
 | `io-blocking`, `io-sequential-async`, `io-concurrent` | 03 | `GET /lab/io/{mode}`, 3 upstream calls of 100/200/300 ms | 50/s | 30 s |
 | `io-blocking-400rps` | 04 | `GET /lab/io/blocking` | 400/s | 30 s |
 | `di-request`, `di-shared` | 06 | `GET /lab/di/instances?mode=…` | 50/s | 30 s |
-| `events-direct`, `events-event` | 07 | `POST /lab/events/price-change?mode=…` | 200/s | 30 s |
+| `events-direct`, `events-event`, `events-event-inline` | 07 | `POST /lab/events/price-change?mode=…` (one hot row) | 200/s | 30 s (inline 20 s) |
+| `io-blocking-async-{default,virtual}-400rps` | 04 | Jakarta `GET /lab/io/blocking-async?executor=…` | 400/s | 30 s |
+| `dbpool-{5,20}-{100,300}rps` | 08 | `GET /lab/resources/db?pool=…&ms=30` (real pool) | 100 / 300/s | 30 s |
+| `redis-get` | 08 | `GET /lab/redis/product/42?mode=distributed` (Redis hit) | 2,000/s | 30 s |
 
 ### 2.4 Phases (backend configurations)
 
@@ -62,8 +65,22 @@ All experiments use the `constant-arrival-rate` executor: k6 sends requests at t
 | `dotnet10-snapshot` | ASP.NET Core, .NET 10 | framework; all experiments + probes |
 | `dotnet11-snapshot` | ASP.NET Core, .NET 11 | runtime only |
 | `cpu{1,2,8}-{spring,jakarta,dotnet}` | each backend | CPU quota (`docker-compose.cpu.yml`, `cpus`) |
+| `v2-rep5-*` | Spring 25/virtual/17, Jakarta, .NET 10 | 5 repetitions of catalogue, I/O and event experiments |
+| `v2-new-*` | each backend | real DB pool, events (JTA / outbox), Jakarta virtual executor, DI probes |
+| `v2-pinning-j21`, `v2-pinning-j25` | Spring | pinning probe on Java 21 and 25 |
+| `v2-redis-spring`, `v3-redis-spring` | Spring × 2 + Redis | shared-cache stampede; consistency, invalidation, Redis down |
+| `v3-*` | each backend | ownership, handler failure, staleness probes |
+| `v4-*` | each backend | **all I/O experiments rerun** with the asyncio upstream (5 or 3 repetitions) |
 
-Controls held fixed: `cpus: 4` (except the CPU phases), `mem_limit: 2g`, same 100K seed, same mock upstream, same k6 image (`grafana/k6:1.3.0`) on the same Docker network, 10 s unrecorded warm-up before every measured run.
+Controls held fixed: `cpus: 4` (except the CPU phases), `mem_limit: 2g`, same 100K seed, same mock upstream, same k6 image (`grafana/k6:1.3.0`) on the same Docker network, one unrecorded warm-up per experiment (10 s; 30 s at ≥ 1,000 req/s), then the measured runs.
+
+Harness rules learned the hard way (each one invalidated results before it existed, see [VALIDATION_STATUS.md](VALIDATION_STATUS.md) F6, F8, F11–F13):
+
+- The upstream mock must not limit concurrency: it is a single-threaded asyncio server.
+- Saturation experiments run last in a phase, and the suite waits until the backend answers fast again before every run (an overloaded server keeps draining its queue).
+- Probes use `127.0.0.1`, not `localhost` (IPv6 fallback costs ~2 s per call on Windows).
+- The host must not sleep during a run; `run_http_suite.py` does not prevent standby by itself.
+- Verify with `mvn clean …`: incremental compilation once hid a compile error that the Docker build found.
 
 ### 2.5 Probes
 
@@ -74,6 +91,14 @@ Controls held fixed: `cpus: 4` (except the CPU phases), `mem_limit: 2g`, same 10
 | pool | 08 | 5 × 32 and 100 requests, 5 permits, 100 ms wait budget, 30 ms work | peak ≤ 5 |
 | DI identity | 06 | two calls per mode | shared: same id; request: different id |
 | CPU | 05 | `/lab/cpu/{sequential,parallel?workers=2,4,8}`, count 100000, rounds 500; 5 warm-up + 15 measured calls | all checksums equal; median `elapsedNs` reported |
+| `di2` | 06 | captive identity (5 calls per mode); 3 × 200 concurrent `mutable` requests per mode | captured: 1 id; fresh: 5 ids; request-scoped: 0 wrong users |
+| `ownership` | 06 | 100 objects per mode; Jakarta also `background` plain / activated | correct mode cleans up all 100 |
+| `events` | 07 | 100 direct + 100 event changes concurrently on a fresh product, 20 rollbacks | audit delta = 200, rolled-back price never visible |
+| `failure` | 07 | 10 × `failAudit=true` per mode | direct: rolled back; event: committed, audit lost or (outbox) retried |
+| `staleness` | 01 | rename product 77, poll until served, 5 samples | ≤ refresh interval (10 s) |
+| `pinning` | 04 | 3 warm-up + 10 × 100 virtual threads sleeping 50 ms in a lock | pinned ≈ 1,250 ms, not pinned ≈ 50 ms |
+| `redis` | 08 | 5 rounds × 100 requests split over 2 instances per mode | `distributed` → 1 load |
+| `redis2` | 08 | stale read before/after invalidation; `docker stop` Redis | fallback to DB; catalogue unaffected |
 
 ## 3. How to reproduce
 
@@ -89,10 +114,13 @@ python tools/run_benchmark.py --suite all --count 100000 --note "CPU; RAM; power
 $env:LabTargetFrameworks='net10.0'
 dotnet run -c Release -f net10.0 --project implementations/aspnet-core/Lab.Benchmarks -- --filter '*' --exporters json markdown --artifacts reports/bdn-runs/net10
 
-# HTTP suite (about 60-90 minutes, all phases) -> reports/http-runs/<UTC>/REPORT.md
+# HTTP suite -> reports/http-runs/<UTC>/REPORT.md (all phases: several hours; keep the machine awake)
 python tools/run_http_suite.py --list
 python tools/run_http_suite.py                         # everything
-python tools/run_http_suite.py --only spring-j25,dotnet10   # subset by phase-id prefix
+python tools/run_http_suite.py --only v4-,v3-               # subset by phase-id prefix
+
+# Charts (docs/images) from the raw data
+python -m pip install matplotlib; python tools/make_charts.py
 ```
 
 Host ports default to 18080 (Spring), 18081 (Jakarta) and 18082 (.NET) in the suite, to avoid clashes with other local services. For manual runs set `LAB_PORT`, `JAKARTA_PORT` and `DOTNET_PORT`.
@@ -112,7 +140,7 @@ Host ports default to 18080 (Spring), 18081 (Jakarta) and 18082 (.NET) in the su
 
 ## 5. Known limits of this setup
 
-- Single workstation (Windows + Docker/WSL VM), one repetition per configuration, unrelated idle containers present. Use the results to see **mechanisms and orders of magnitude**. Do not treat them as precise ratios.
+- Single workstation (Windows + Docker/WSL VM), unrelated idle containers present. Headline comparisons were repeated 3–5 times (reported as median [min – max]); other rows are single runs. Use the results for **mechanisms and orders of magnitude**, not precise ratios.
 - k6 and the mock upstream share the host with the backend. They are not CPU-limited, so they are unlikely to be the bottleneck at these rates, but they do compete for host CPU.
 - Cross-framework rows compare these lab implementations, not frameworks in general. The editions differ in JSON libraries, thread pools and code paths (see each lab README).
 - The protocol for a publication-quality study (five repetitions, dedicated host, pinned CPU sets) is in [EXPERIMENT_PROTOCOL.md](EXPERIMENT_PROTOCOL.md).

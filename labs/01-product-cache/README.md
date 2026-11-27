@@ -1,141 +1,138 @@
 # Lab 01 — Product cache and incremental synchronization
 
-> Use case: **"Show a 100,000-product catalogue, 10 at a time, from memory, while a background job keeps it in sync with MySQL."**
-> Related reading: [EVALUATION.md](EVALUATION.md) (design discussion), [SYNCHRONIZATION.md](../../docs/SYNCHRONIZATION.md) (journal vs watermark), [consolidated benchmark report](../../reports/BENCHMARK_REPORT.md).
+> **Use case:** show a 100,000-product catalogue, 10 at a time, from memory, while a background job keeps it in sync with MySQL.
+> Related: [EVALUATION.md](EVALUATION.md) (design discussion), [SYNCHRONIZATION.md](../../docs/SYNCHRONIZATION.md) (journal vs watermark), [benchmark report](../../reports/BENCHMARK_REPORT.md).
 
-## 1. Scenario
+## 1. Problem and why it matters
 
-A product has `id`, `name` and a nullable `lastUpdatedTime`. On startup every product is loaded into an in-memory cache. Every 10 seconds a refresh job applies the database changes since the previous refresh (inserts, renames, deletes). HTTP readers keep reading **during** the refresh. Newly inserted rows have `lastUpdatedTime = NULL`, which breaks naive timestamp-based change detection.
+Reading a catalogue from memory is fast, but two hard questions remain:
 
-Two independent questions are studied:
+1. **Which changes must the refresh apply?** Newly inserted rows have `lastUpdatedTime = NULL`, and IDs and timestamps are assigned *before* commit. A naive "newer than the last watermark" query misses rows.
+2. **How are changes published to readers that are reading right now?** A reader must never see a broken structure. Depending on the requirements, it may also need to see a *whole* batch or none of it.
 
-| Question | Where it is answered |
+## 2. Concepts
+
+| Concept | Meaning |
 |---|---|
-| *Which changes must the refresh apply?* (change detection) | Journal vs watermark vs full reload — [SYNCHRONIZATION.md](../../docs/SYNCHRONIZATION.md) |
-| *How are those changes published safely to concurrent readers?* (in-memory structure) | Five cache strategies — this document |
+| Thread safety vs atomicity | a concurrent map makes each `get`/`put` safe; a batch of 16 updates is still visible in stages |
+| Safe publication | readers see either the old or the new fully built object (immutable snapshot + volatile reference) |
+| Copy-on-write | writers copy the whole structure, readers never lock |
+| Change journal | triggers write every change to `product_changes` in the same transaction; the consumer acknowledges exactly what it read |
+| Staleness | time between a committed change and the cache serving it |
 
-## 2. Invariants (what "correct" means)
-
-1. After the first load, `size() == 100000` and pages are sorted by id (`page=2,size=10` starts at id 11).
-2. A product inserted with a NULL timestamp, a rename and a delete all become visible after the next refresh.
-3. A reader never sees a corrupted structure or an exception caused by concurrent writes.
-4. **Batch atomicity (strategy-dependent):** `synchronized` and `snapshot` guarantee that a page reflects either the whole previous batch or the whole next batch. `concurrent` and `caffeine` guarantee per-key safety only (weakly consistent pages). `unsafe` guarantees nothing and exists as a negative example.
-
-## 3. Strategies and implementations
-
-| Strategy | Java (Spring + Jakarta share it) | .NET | Read path | Write path |
-|---|---|---|---|---|
-| `unsafe` | [UnsafeCache](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/cache/UnsafeCache.java) – plain `HashMap` | `Dictionary` without lock | no synchronization | mutate in place — **data race** |
-| `synchronized` | [LockedCache](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/cache/LockedCache.java) – one monitor | `Dictionary` + `lock` | takes the global monitor | mutate under monitor |
-| `concurrent` | [ConcurrentCache](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/cache/ConcurrentCache.java) – `ConcurrentHashMap` | `ConcurrentDictionary` | lock-free get | per-key put/remove |
-| `snapshot` (default) | [SnapshotCache](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/cache/SnapshotCache.java) – `AtomicReference<Map>` of an immutable map | `ImmutableDictionary` + `Interlocked.Exchange` | one volatile read, no lock | copy whole map, apply batch, publish new reference |
-| `caffeine` / `library` | [CaffeineCache](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/cache/CaffeineCache.java) (no eviction/TTL) | `IMemoryCache` + key set | library lookup | per-key put/invalidate |
-
-Framework wiring:
-
-- **Spring Boot**: `LAB_CACHE_STRATEGY` selects the bean in [LabConfiguration](../../implementations/spring-boot/app/src/main/java/de/backendlab/config/LabConfiguration.java); [RefreshCoordinator](../../implementations/spring-boot/app/src/main/java/de/backendlab/labs/cache/RefreshCoordinator.java) serializes writers with a `ReentrantLock` and acknowledges journal rows; [CacheLifecycle](../../implementations/spring-boot/app/src/main/java/de/backendlab/labs/cache/CacheLifecycle.java) runs the `@Scheduled` refresh.
-- **Jakarta EE**: [Catalog](../../implementations/jakarta-ee/src/main/java/de/backendlab/ee/Catalog.java) is an `@ApplicationScoped` CDI bean that uses the same Java cache classes, plain JDBC and `ManagedScheduledExecutorService`.
-- **ASP.NET Core**: `Catalog` and `RefreshWorker` (a `BackgroundService` with `PeriodicTimer`) in [Program.cs](../../implementations/aspnet-core/Lab.Api/Program.cs), using ADO.NET via MySqlConnector.
-
-Change detection is the same in all three editions: MySQL triggers write every insert/update/delete into `product_changes` ([schema.sql](../../implementations/spring-boot/app/src/main/resources/schema.sql)). The refresh reads a bounded batch, re-reads those products, applies upserts and deletes as one `Changes` batch, and deletes exactly the journal rows it consumed, all in one REPEATABLE READ transaction.
-
-## 4. Endpoints
-
-| Method | Path | Notes |
-|---|---|---|
-| GET | `/api/products?page=1&size=10&search=` | Sorted, filtered page from the cache. `size` 1..100 |
-| GET | `/api/products/{id}` | Single cached product, 404 if absent |
-| POST/PUT/DELETE | `/api/products[/{id}]` | Writes go to MySQL; visible in the cache **after the next refresh** |
-| GET | `/api/cache/status` | Size and sync strategy |
-| POST | `/lab/cache/refresh` | Manual refresh (lab profile only) |
-
-## 5. How to run
-
-```powershell
-$env:SPRING_PROFILES_ACTIVE='lab'; $env:LAB_CACHE_STRATEGY='snapshot'   # or synchronized | concurrent | caffeine
-docker compose up -d --build --force-recreate mysql mock-api app
-python tools/compare_http.py --url http://localhost:8080                # functional contract first
+```mermaid
+flowchart LR
+  W[(MySQL products)] -- trigger, same TX --> J[(product_changes)]
+  T[refresh every 10 s] -->|read batch, re-read rows| J
+  T -->|"build Changes(upserts, deletes)"| C{{ProductCache strategy}}
+  C -->|snapshot: copy map, swap reference| R1[readers]
+  C -->|concurrent: per-key put/remove| R2[readers]
+  T -->|delete exactly the consumed journal rows| J
 ```
 
-## 6. Benchmarks in this lab
+## 3. Incorrect and correct implementations
 
-### 6.1 JMH `CacheBenchmark` (method level, no HTTP)
-
-Source: [CacheBenchmark.java](../../implementations/spring-boot/benchmarks-jmh/src/main/java/de/backendlab/bench/CacheBenchmark.java). Runner: `python tools/run_benchmark.py --suite cache --count 100000`.
-
-| Benchmark | Threads | What one "op" is | Why it exists |
+| Strategy | Java ([cache-core](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/cache/), Spring + Jakarta) | .NET (`Catalog` in [Program.cs](../../implementations/aspnet-core/Lab.Api/Program.cs)) | Guarantee |
 |---|---|---|---|
-| `readOnly` | 4 readers | one `get(id)` for a pseudo-random id (fixed seed, 4096-key trace per thread) | cost of the read path when there is no writer |
-| `mixed` (group) | 4 readers + 1 writer | reader op = one `get(id)`; writer op = one **batch** of 16 upserts | how much a continuously running writer hurts readers, and what a batch costs |
+| `unsafe` ✖ | `HashMap`, no lock | `Dictionary`, no lock | none (data race; negative example) |
+| `synchronized` | one monitor for reads and writes | `lock` | atomic pages, readers block each other |
+| `concurrent` | `ConcurrentHashMap` | `ConcurrentDictionary` | per-key safety only |
+| `snapshot` (default) | `AtomicReference<Map>` of an immutable copy | `ImmutableDictionary` + `Interlocked.Exchange` | atomic pages, lock-free reads, full copy per batch |
+| `caffeine` / `library` | Caffeine without eviction | `IMemoryCache` + key set | per-key safety |
 
-Settings: 2 forks, 3×2 s warm-up, 5×2 s measurement, `-Xms1g -Xmx1g`, `-prof gc`. The writer runs flat out, which is a stress case. The real refresh runs once every 10 s. `unsafe` is excluded because a fast wrong answer is not a result.
+Change detection: `journal` (default, correct), `watermark` (deliberately limited baseline that misses late commits), `full` (ports only). The refresh is serialized by a writer lock: `RefreshCoordinator` in Spring, `synchronized refresh()` in Jakarta, `SemaphoreSlim` in .NET.
 
-### 6.2 k6 HTTP benchmarks (end to end)
+## 4. Framework differences
 
-Run by `tools/run_http_suite.py`, backend limited to 4 CPUs / 2 GB:
-
-| Experiment | Request | Rate | What it shows |
+| | Spring Boot | Jakarta EE | ASP.NET Core |
 |---|---|---|---|
-| `catalog-get` | `GET /api/products/42` | 2,000 req/s, 30 s | framework + JSON + cache lookup latency |
-| `catalog-page` | `GET /api/products?page=500&size=20` | 50 req/s, 30 s | cost of building a sorted page over 100K entries per request |
+| scheduler | `@Scheduled` | `ManagedScheduledExecutorService` | `BackgroundService` + `PeriodicTimer` |
+| data access | Spring JDBC | plain JDBC | ADO.NET (MySqlConnector), async |
+| cache code | shared `cache-core` | same `cache-core` | own implementation |
+| page building | stream filter + sort of all entries | same | LINQ over `ImmutableDictionary.Values` (a tree) copied into an array |
 
-## 7. Measured results
+## 5. Correctness tests
 
-Environment for all numbers: Intel i7-13700H (20 logical CPUs), 32 GB RAM, Windows 11, Temurin 25.0.4.1. Raw data: [reports/runs/20261126T194918342533Z](../../reports/runs/20261126T194918342533Z/).
+- `CacheContractTest` (all five strategies: seed, pagination, search, insert/update/delete, immutability; atomic page under concurrent writes for `synchronized`/`snapshot`), `RaceConditionTest`, `WatermarkTest`.
+- `CatalogIT` (Testcontainers MySQL): HTTP pagination, NULL-timestamp insert, rename, delete, **late commit missed by the watermark and caught by the journal**, rollback.
+- `compare_http.py` / `smoke_api.py`: pagination and NULL-timestamp insert on every edition.
+- Probe `staleness`: rename product 77, poll until the cache serves it (5 samples per edition).
 
-### 7.1 JMH read-only (4 threads, 100K products)
+## 6. Benchmark methodology
 
-| Strategy | Throughput (ops/s) | ± error (99.9%) | Alloc (B/op) | Relative to `synchronized` |
-|---|---:|---:|---:|---:|
-| synchronized | 4.62 M | 0.46 M | 40 | 1.0× |
-| concurrent | 62.8 M | 4.8 M | 40 | 13.6× |
-| **snapshot** | **88.1 M** | 7.2 M | 16 | **19.1×** |
-| caffeine | 48.0 M | 17.3 M | 40 | 10.4× |
+| Benchmark | Setup |
+|---|---|
+| JMH `CacheBenchmark.readOnly` | 4 threads, `get(id)` for pseudo-random ids, 100K products, 2 forks × 5 × 2 s, `-prof gc` |
+| JMH `CacheBenchmark.mixed` | 4 readers + 1 writer applying 16-product batches as fast as possible (stress case) |
+| k6 `catalog-get` | `GET /api/products/42`, 2,000 req/s, 30 s warm-up + 30 s, 4 CPUs, 5 repetitions |
+| k6 `catalog-page` | `GET /api/products?page=500&size=20`, 50 req/s |
 
-Caffeine's wide error comes from two low iterations (≈29 M ops/s) among otherwise 50–61 M iterations. That is a sign of run-to-run noise on this workstation, not a stable property. Repeat the run before relying on the Caffeine number.
+## 7. Results
 
-### 7.2 JMH mixed (4 readers + 1 writer)
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab01-jmh-read-dark.svg"><img alt="Bar chart of read throughput: synchronized 4.6 M, concurrent 62.8 M, snapshot 88.1 M, caffeine 48.0 M lookups per second." src="../../docs/images/lab01-jmh-read-light.svg"></picture>
 
-| Strategy | Reader ops/s | Writer batches/s | GC time during run | Comment |
-|---|---:|---:|---:|---|
-| synchronized | 1.49 M | 902 K | 16 ms | readers and the writer fight for one monitor; reads drop 3× vs read-only |
-| concurrent | 34.3 M | 615 K | 122 ms | readers almost unaffected; batches are not atomic |
-| **snapshot** | **43.0 M** | **33.4** | **2,163 ms** | readers are fastest, but each batch copies 100K entries (~30 ms per batch) |
-| caffeine | 43.2 M | 626 K | 114 ms | similar to concurrent; batches are not atomic |
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab01-jmh-mixed-dark.svg"><img alt="Left: reader throughput with one writer. Right: writer batches per second on a log scale; snapshot 33 versus about 600 thousand to 900 thousand for the others." src="../../docs/images/lab01-jmh-mixed-light.svg"></picture>
 
-### 7.3 k6 HTTP, Spring Boot / Java 25 / platform threads (4 CPUs, 2 GB)
+**JMH** — [run 20261126T194918342533Z](../../reports/runs/20261126T194918342533Z/REPORT.md):
 
-All rows come from the same suite run ([reports/http-runs/20261126T202650Z](../../reports/http-runs/20261126T202650Z/REPORT.md)), with a 10 s warm-up before each measured 30 s window. Latency in ms.
+| Strategy | read-only ops/s (± 99.9 % CI) | alloc B/op | mixed: reader ops/s | mixed: writer batches/s | GC time in mixed run |
+|---|---:|---:|---:|---:|---:|
+| synchronized | 4.62 M ± 0.46 M | 40 | 1.49 M | 902 K | 16 ms |
+| concurrent | 62.8 M ± 4.8 M | 40 | 34.3 M | 615 K | 122 ms |
+| **snapshot** | **88.1 M ± 7.2 M** | 16 | **43.0 M** | **33.4** | **2,163 ms** |
+| caffeine | 48.0 M ± 17.3 M | 40 | 43.2 M | 626 K | 114 ms |
 
-| Strategy | `catalog-get` 2,000/s: p50 / p95 / p99 | dropped | `catalog-page` 50/s: p50 / p95 / p99 |
-|---|---|---:|---|
-| synchronized | 0.87 / 16.5 / 47.6 | 36 | 10.5 / 35.5 / **120.8** |
-| concurrent | 1.16 / 52.6 / 101.0 | 384 | 8.4 / 13.5 / 19.8 |
-| snapshot | 1.02 / 28.4 / 79.2 | 164 | 7.9 / 12.6 / 17.8 |
-| caffeine | 0.92 / 19.8 / 50.5 | 5 | 8.2 / 12.6 / 16.1 |
+Caffeine's wide interval comes from two slow iterations (≈ 29 M) among otherwise 50–61 M; treat it as noisy.
 
-Cross-framework, same snapshot strategy: see the [consolidated report](../../reports/BENCHMARK_REPORT.md#31-lab-01--product-cache).
+**HTTP `catalog-get`, snapshot strategy, 5 repetitions** — median [min – max]:
 
-**How to read this:** at the HTTP level a single-key lookup (nanoseconds) is invisible next to Tomcat, Jackson and the network (about a millisecond). The `catalog-get` spread between strategies is run-to-run noise in the p95/p99 tail, not a ranking. For example, `concurrent` is the fastest map in JMH and has the worst tail here. Paging is different: `synchronized` holds its monitor during the ~8 ms filter-and-sort, so concurrent page requests queue behind each other and p99 rises to 121 ms. The lock-free strategies stay below 20 ms.
+| Edition | achieved req/s | p50 ms | p99 ms | source |
+|---|---|---|---|---|
+| Spring Boot | 1,999.9 [1,974 – 1,999.9] | 0.62 [0.48 – 0.79] | 5.16 [1.52 – 104.9] | [003011Z](../../reports/http-runs/20261127T003011Z/REPORT.md) |
+| Jakarta EE | 1,987.5 [1,532 – 1,993] | 1.65 [1.43 – 562.9] | 218.0 [105.6 – 1,130.6] | [011057Z](../../reports/http-runs/20261127T011057Z/REPORT.md) |
+| ASP.NET Core | 1,999.9 [1,989 – 2,000] | 0.93 [0.81 – 0.94] | 35.5 [21.4 – 54.4] | same |
 
-## 8. Interpretation
+**Strategies over HTTP** (Spring, single runs, [202650Z](../../reports/http-runs/20261126T202650Z/REPORT.md)):
 
-- **A single monitor caps read scalability.** Even with no writer, four threads reach only 4.6 M ops/s, against 63–88 M ops/s for the lock-free reads, because every `get` serializes. In the mixed run the writer keeps the monitor hot and readers lose another 3×.
-- **Snapshot gives the best read path and atomic batches, and pays at write time.** One volatile read plus an immutable-map lookup is the cheapest read measured. But a 16-product batch copies the whole 100K map: 33 batches/s and about 2.2 s of GC per measurement window under continuous writes. With the real 10-second refresh, that is one ~30 ms copy every 10 s, which is negligible. If the catalogue changed hundreds of times per second, the snapshot would be the wrong choice.
-- **Concurrent / Caffeine are the balanced choice when pages may be weakly consistent.** Writers are ~18,000× cheaper than snapshot batches, and reads remain within 20% of snapshot.
-- **Paging is the real hot spot, not the map.** `ProductPage.from` filters and sorts all 100K entries on every page request, whatever the strategy (see `catalog-page`). A pre-sorted array published together with the snapshot would remove that cost. It is listed as a follow-up in [ROADMAP.md](../../docs/ROADMAP.md).
+| Strategy | catalog-get p50 / p99 | catalog-page p50 / p99 |
+|---|---|---|
+| synchronized | 0.87 / 47.6 | 10.5 / **120.8** |
+| concurrent | 1.16 / 101.0 | 8.4 / 19.8 |
+| snapshot | 1.02 / 79.2 | 7.9 / 17.8 |
+| caffeine | 0.92 / 50.5 | 8.2 / 16.1 |
 
-## 9. Trade-offs and decision
+**Paging per edition** (snapshot, [222721Z](../../reports/http-runs/20261126T222721Z/REPORT.md)): Spring p50 6.2 / p99 12.1 ms (45 % CPU), Jakarta 8.5 / 15.0 ms (49 %), .NET **47.4 / 97.6 ms (261 % CPU)**.
+
+**Staleness** (journal refresh every 10 s, phases `v3-*`, [011057Z](../../reports/http-runs/20261127T011057Z/REPORT.md)): Spring 3.2–8.3 s (median 5.0 s), Jakarta 3.2–8.3 s (5.4 s), .NET 3.2–8.3 s (4.9 s).
+
+## 8. Interpretation and trade-offs
+
+**Observations → explanations**
+1. A global monitor caps reads at 4.6 M ops/s, 19× below the snapshot, because every `get` serializes. With a writer it drops another 3×.
+2. The snapshot has the cheapest reads (one volatile read, immutable map) but copies 100K entries per batch: 33 batches/s and 2.2 s of GC per measurement window under continuous writes. With the real 10 s refresh that is one ~30 ms copy every 10 s, which is negligible.
+3. Over HTTP the strategies are indistinguishable for single-key reads. The map lookup costs nanoseconds and HTTP + JSON about a millisecond; p99 differences between single runs are noise. Paging is different: `synchronized` holds the monitor during the ~8 ms sort, so concurrent page requests queue (p99 121 ms).
+4. Jakarta at 2,000 req/s is near its 4-CPU capacity and **bistable**: 4 of 5 runs were fine (p50 ≈ 1.5 ms), one collapsed (p50 563 ms). An earlier single run (1,207 req/s) caught the bad side. The cause of the higher CPU per request on WildFly was not profiled.
+5. .NET pages are 5–8× slower and CPU-heavy because every request copies the `ImmutableDictionary` (a balanced tree) into an array before sorting 100K entries.
+6. Staleness is uniform in 0–10 s, as a 10 s polling refresh implies (median ≈ 5 s).
+
+**Decision table**
 
 | Need | Choose |
 |---|---|
-| Atomic, consistent pages; rare refreshes; read-heavy | **snapshot** (default) |
-| Frequent writes; per-product independence acceptable | concurrent (or Caffeine if eviction/TTL/statistics are needed later) |
-| Simplest correct code; low concurrency | synchronized |
-| Never | unsafe |
+| consistent pages, rare refreshes, read-heavy | **snapshot** |
+| frequent writes, per-product independence acceptable | concurrent (or Caffeine for eviction/TTL) |
+| simplest correct code, low concurrency | synchronized |
+| fresher data than "≤ refresh interval" | shorter interval, or write-through / explicit invalidation |
 
-## 10. Limitations
+## 9. Limitations
 
-- JMH measures cache classes only; there is no JMH/BDN equivalent for the .NET cache variants yet.
-- One machine, one JMH run per configuration, shared with other idle containers; treat differences below ~10–15% as noise.
-- The page benchmark uses one fixed page/size; search terms were not benchmarked.
+- One JMH run per configuration. The HTTP strategy comparison is single-run. Paging uses one fixed page.
+- Pages are sorted per request in every edition. A pre-sorted index published with the snapshot would remove that cost (listed in [ROADMAP.md](../../docs/ROADMAP.md)).
+- No BenchmarkDotNet equivalent of the cache microbenchmarks.
+
+## 10. Use cases and interview questions
+
+- Product catalogues, reference data, feature flags, permission tables.
+- *Why does `LastUpdatedTime > watermark` miss rows?* NULLs and late commits ([SYNCHRONIZATION.md](../../docs/SYNCHRONIZATION.md)).
+- *ConcurrentHashMap or snapshot?* Per-key safety vs atomic view; cheap writes vs cheap reads.
+- *How stale can the cache be?* Up to the refresh interval plus refresh time (measured median ≈ 5 s with 10 s polling).

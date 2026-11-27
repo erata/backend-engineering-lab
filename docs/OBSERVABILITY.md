@@ -1,21 +1,48 @@
-# Optional observability
+# Observability
 
-The baseline lab does not depend on monitoring. Start only the selected backend and optional services. Spring includes Actuator and a Prometheus registry. The provisioned Grafana dashboard uses Spring's request rate, p95 histogram, heap and live thread metrics; validate the exported names after startup.
+The labs do not depend on monitoring; it is an optional overlay. **Ingestion of metrics and traces was verified for all three editions on 2026-11-27**: [validation record](../reports/observability/2026-11-27-validation.md).
 
-```powershell
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml up -d app mock-api otel-collector prometheus tempo grafana
+```mermaid
+flowchart LR
+  S["Spring Boot<br/>+ OTel Java agent"] -- OTLP/HTTP --> C[OTel Collector]
+  J["WildFly / Jakarta<br/>+ OTel Java agent"] -- OTLP/HTTP --> C
+  N["ASP.NET Core<br/>+ OTel .NET SDK"] -- OTLP/gRPC --> C
+  C -- traces --> T[(Tempo)]
+  C -- metrics, :9464 --> P[(Prometheus)]
+  S -- /actuator/prometheus --> P
+  G[Grafana] --> P & T
 ```
 
-Grafana: http://localhost:3000 (local admin / `local-grafana-password`), Prometheus: http://localhost:9090, Tempo: http://localhost:3200. These are loopback-only lab endpoints. Prometheus may show no data until the application starts and receives requests.
+## Start
 
-For Java tracing download the official OpenTelemetry Java agent JAR from https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases, select and record a compatible release and verify its published checksum. Save it as `observability/agent.jar` (not included). Then apply the optional overlay:
+1. Download the official OpenTelemetry Java agent from https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases, check its checksum and save it as `observability/agent.jar` (git-ignored). Validated with **2.34.0**.
+2. Start one backend with the overlays:
 
 ```powershell
-docker compose -f docker-compose.yml -f docker-compose.monitoring.yml -f docker-compose.otel-java.yml up -d --force-recreate app mock-api otel-collector prometheus tempo grafana
+# Spring Boot
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml -f docker-compose.otel-java.yml up -d --build app mock-api otel-collector prometheus tempo grafana
+# Jakarta EE (same agent)
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml -f docker-compose.otel-java.yml --profile jakarta up -d --build jakarta mock-api otel-collector prometheus tempo grafana
+# ASP.NET Core (SDK, enabled by OTEL_EXPORTER_OTLP_ENDPOINT)
+docker compose -f docker-compose.yml -f docker-compose.monitoring.yml -f docker-compose.otel-dotnet.yml --profile dotnet up -d --build dotnet mock-api otel-collector prometheus tempo grafana
 ```
 
-For Jakarta select `--profile jakarta` and `jakarta` instead of `app`. For .NET use `docker-compose.otel-dotnet.yml` and `--profile dotnet`. The SDK is configured conditionally using OTLP environment variables. Collector exports metrics to a scrape endpoint and traces to Tempo. No Loki/log shipping is configured. Dashboard data for Jakarta and .NET requires querying their actual emitted metric names; the Spring dashboard is not a universal cross-framework dashboard.
+Grafana http://localhost:3000 (admin / `local-grafana-password`, local only), Prometheus http://localhost:9090. Tempo has no published port; use Grafana Explore or the datasource proxy.
 
-Check traces by making requests, then querying Tempo in Grafana Explore. Verify ingestion before making claims. No telemetry stack was run in the authoring environment.
+## What to expect
 
-For profiling use JFR (`jcmd <pid> JFR.start name=lab settings=profile duration=60s filename=lab.jfr`) on a JDK-equipped local runtime, `dotnet-counters monitor --process-id <pid>` or `dotnet-trace collect --process-id <pid>` on a local .NET process with the diagnostic tools installed. The runtime-only Docker images may not contain these tools. Record profiles separately from uninstrumented benchmark measurements.
+| Signal | Where | Names |
+|---|---|---|
+| Spring Micrometer metrics | Prometheus job `spring` | `http_server_requests_seconds_*`, `jvm_*` |
+| OTel metrics (all editions) | Prometheus job `collector`, label `exported_job=backendlab-{spring,jakarta,dotnet}` | `http_server_request_duration_seconds_*`, `http_client_request_duration_seconds_*` |
+| Traces | Tempo, `service.name = backendlab-*` | e.g. `GET /lab/io/{mode}` with three client `GET` spans |
+
+The first OTel metrics appear within about a minute (default export interval 60 s). Example TraceQL: `{ resource.service.name = "backendlab-dotnet" && span.http.route = "/lab/io/{mode}" }`.
+
+The provisioned dashboard "Backend Lab — Spring baseline" uses Spring's Micrometer names only; for Jakarta and .NET use Explore (no dedicated dashboards). No log pipeline is configured.
+
+## Profiling
+
+JFR: `jcmd <pid> JFR.start name=lab settings=profile duration=60s filename=lab.jfr`. A thread dump that includes **virtual threads** needs `jcmd <pid> Thread.dump_to_file -format=plain <file>` (a classic `jstack`/`kill -3` dump shows only carrier threads); this is how the WildFly executor limit was found. On .NET use `dotnet-counters` / `dotnet-trace` against a process with the diagnostic tools installed. The runtime-only images may not contain these tools; WildFly's image includes a JDK and `jcmd`.
+
+Benchmarks in [the report](../reports/BENCHMARK_REPORT.md) were run **without** instrumentation; the agent's overhead was not measured.

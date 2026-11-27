@@ -1,86 +1,125 @@
 # Lab 02 — Race conditions and stock reservation
 
-> Use case: **"A flash sale has 100 units of a product and 200 customers press *Buy* at the same moment. Exactly 100 must succeed and the stock must never go negative."**
+> **Use case:** a flash sale has 100 units and 200 customers press *Buy* at the same moment. Exactly 100 purchases may succeed and stock must never go negative.
 
-## 1. Scenario and invariant
+## 1. Problem and why it matters
 
-One experiment = `requests` concurrent reservation attempts against `stock` units, each attempt "if stock > 0 then stock -= 1 and accept".
+"If stock > 0 then stock -= 1" is a **check-then-act** sequence. Two threads can both read `1`, both pass the check and both decrement. The result is an oversell, which in a real shop means a refund, an angry customer or a broken ledger. These bugs rarely show up in single-user tests and appear under production load.
 
-Invariant checked on **every** run: `accepted == min(stock, requests)` and `remaining == max(0, stock - requests)`. The endpoint returns `correct: true/false`.
+**Invariant (checked on every run):** `accepted == min(stock, requests)` and `remaining == max(0, stock − requests)`.
 
-The read-check-write sequence is a **compound operation**. Making each step thread-safe is not enough; the whole sequence must be atomic.
+## 2. Concepts
 
-## 2. Variants and implementation
+| Concept | Meaning here |
+|---|---|
+| Race condition | the result depends on the timing of concurrent threads |
+| Atomicity | the whole read-check-write happens as one indivisible step |
+| Mutual exclusion (lock) | only one thread at a time may execute the critical section |
+| Compare-and-set (CAS) | "set to *new* only if it is still *old*", retried until it succeeds; lock-free |
+| Contention | many threads competing for the same lock or variable |
 
-| Mode | Java ([Experiments.reserve](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/experiments/Experiments.java)) | .NET (`Lab.Reserve` in [Program.cs](../../implementations/aspnet-core/Lab.Api/Program.cs)) | Guarantee |
+```mermaid
+sequenceDiagram
+  autonumber
+  participant A as Thread A
+  participant S as stock (=1)
+  participant B as Thread B
+  Note over A,B: unsafe check-then-act (conceptual)
+  A->>S: read → 1
+  B->>S: read → 1
+  A->>S: write 0 (accepted)
+  B->>S: write 0 (accepted)  ⚠ oversold
+  Note over A,B: CAS: B's compareAndSet(1→0) fails because the value is already 0, B re-reads and stops
+```
+
+## 3. Incorrect and correct implementations
+
+| Mode | Java ([Experiments.reserve](../../implementations/spring-boot/cache-core/src/main/java/de/backendlab/experiments/Experiments.java)) | .NET (`Lab.Reserve` in [Program.cs](../../implementations/aspnet-core/Lab.Api/Program.cs)) | Correct? |
 |---|---|---|---|
-| `unsafe` | read `int[]`, `Thread.yield()`, write | read `int`, `Thread.Yield()`, write | none: two threads read the same value → **lost update / oversell** |
-| `lock` | `synchronized(lock) { check; decrement }` | `lock(gate) { … }` | mutual exclusion of the compound step |
-| `atomic` | CAS loop on `AtomicInteger.compareAndSet(old, old-1)` | `Interlocked.CompareExchange` loop | lock-free conditional decrement |
+| `unsafe` | read a plain `int`, `Thread.yield()`, write | read `int`, `Thread.Yield()`, write | ✖ lost updates |
+| `lock` | `synchronized (lock) { check; decrement }` | `lock (gate) { … }` | ✔ |
+| `atomic` | CAS loop on `AtomicInteger.compareAndSet(old, old − 1)` | `Interlocked.CompareExchange` loop | ✔ |
 
-The `yield` in `unsafe` widens the race window on purpose, so the failure shows up reliably instead of once a month in production.
+The `yield` widens the race window on purpose, so that the defect shows up in a lab instead of once a month in production.
 
-Task scheduling per edition: Spring submits each attempt as a `CompletableFuture` to a fixed 32-thread pool; Jakarta uses the container's `ManagedExecutorService`; .NET uses `Parallel.For` on the ThreadPool, which partitions the 2,000 iterations over a few worker threads.
+## 4. Framework and runtime differences
 
-Endpoint: `POST /lab/concurrency/reserve?mode=atomic|lock|unsafe&stock=100&requests=200` (bounds: stock ≥ 0, requests 1..2000). Each call creates fresh state.
+| | Spring Boot | Jakarta EE | ASP.NET Core |
+|---|---|---|---|
+| how 2,000 attempts are scheduled | 2,000 `CompletableFuture`s on a fixed 32-thread pool | same kernel on the container's `ManagedExecutorService` | `Parallel.For` – a few ThreadPool workers run the loop body inline |
+| lock primitive | intrinsic monitor (`synchronized`) | same | `Monitor` (`lock`) |
+| CAS primitive | `AtomicInteger` | same | `Interlocked` |
 
-## 3. Benchmarks
+Spring and Jakarta share the same Java kernel; only the executor differs.
+
+## 5. Correctness tests
+
+- Unit: `RaceConditionTest` (deterministic lost update with a barrier), `ExperimentTests.StockInvariant` (.NET), `tools/check_extended.py`.
+- HTTP contract: `compare_http.py` asserts `correct: true` for `lock` and `atomic` on every edition.
+- Probe: 30 runs per mode (stock 100, 200 concurrent requests) per edition in `run_http_suite.py`.
+
+## 6. Benchmark methodology
 
 | Benchmark | Tool | Workload |
 |---|---|---|
-| Correctness probe | `run_http_suite.py` | 30 runs per mode, stock 100 / 200 requests, count incorrect results |
-| `EngineeringBenchmark.reserve` | JMH | one full experiment, stock 1,000 / 2,000 attempts, 32-thread pool |
-| `ReservationBench.Reserve` | BenchmarkDotNet | same experiment with `Parallel.For` |
-| `reserve-atomic`, `reserve-lock` | k6 | 50 experiments/s over HTTP (= 100,000 attempts/s), 30 s |
+| kernel cost | JMH `EngineeringBenchmark.reserve`, BDN `ReservationBench` | one full experiment: stock 1,000, 2,000 attempts; 2 forks × 5 iterations (JMH), BDN default job |
+| HTTP | k6, 50 experiments/s for 30 s (= 100,000 attempts/s), 4 CPUs | `reserve-atomic`, `reserve-lock` |
 
-## 4. Results
+`unsafe` is never benchmarked: a fast wrong answer is not a result.
 
-### 4.1 Correctness (30 runs each, run [20261126T222721Z](../../reports/http-runs/20261126T222721Z/REPORT.md))
+## 7. Results
 
-| Edition | unsafe: incorrect runs | worst oversell (accepted of 100) | lock: incorrect | atomic: incorrect |
+<picture><source media="(prefers-color-scheme: dark)" srcset="../../docs/images/lab02-unsafe-dark.svg"><img alt="Bar chart: unsafe reservation oversold in 21 of 30 runs on Spring Boot, 29 of 30 on Jakarta EE and 11 of 30 on ASP.NET Core" src="../../docs/images/lab02-unsafe-light.svg"></picture>
+
+**Correctness** — run [20261126T222721Z](../../reports/http-runs/20261126T222721Z/REPORT.md), 30 runs per mode:
+
+| Edition | unsafe: wrong runs | worst result (accepted of 100) | lock: wrong | atomic: wrong |
 |---|---:|---:|---:|---:|
-| Spring Boot | **21 / 30** | 150 | 0 / 30 | 0 / 30 |
-| Jakarta EE | **29 / 30** | 144 | 0 / 30 | 0 / 30 |
-| ASP.NET Core | **11 / 30** | 185 | 0 / 30 | 0 / 30 |
+| Spring Boot | 21 / 30 | 150 | 0 / 30 | 0 / 30 |
+| Jakarta EE | 29 / 30 | 144 | 0 / 30 | 0 / 30 |
+| ASP.NET Core | 11 / 30 | 185 | 0 / 30 | 0 / 30 |
 
-`unsafe` sold up to **85% more units than existed**. The failure rate depends on how many threads actually run in parallel, so it differs between executors. That variability is exactly why a race "that passed the tests" is not evidence of safety.
+**Kernel cost** (stock 1,000, 2,000 attempts) — [JMH run](../../reports/runs/20261126T194918342533Z/REPORT.md), [BDN results](../../reports/bdn-runs/net10/results/ReservationBench-report-github.md):
 
-### 4.2 Kernel cost (stock 1,000, 2,000 attempts)
-
-| Mode | JMH (Java 25, 32-thread pool) | BenchmarkDotNet (.NET 10, Parallel.For) |
+| Mode | JMH, Java 25 | BDN, .NET 10 |
 |---|---:|---:|
-| atomic (CAS) | 0.81 ± 0.11 ms, 355 KB alloc | **0.167 ± 0.005 ms**, 4.9 KB alloc |
-| lock | 0.86 ± 0.10 ms, 362 KB alloc | **1.039 ± 0.028 ms**, 6.5 KB alloc |
+| atomic | 0.81 ± 0.11 ms (355 KB allocated) | 0.167 ± 0.005 ms (4.9 KB) |
+| lock | 0.86 ± 0.10 ms (362 KB) | 1.039 ± 0.028 ms (6.5 KB) |
 
-### 4.3 HTTP (50 experiments/s, 4 CPUs)
+**HTTP**, 50 experiments/s, 4 CPUs, run 20261126T222721Z (ms):
 
-| Edition | atomic p50 / p95 / p99 (ms) | lock p50 / p95 / p99 (ms) | CPU (atomic / lock) |
-|---|---|---|---|
-| Spring Boot | 1.62 / 2.58 / 3.53 | 1.75 / 2.58 / 3.28 | 16% / 16% |
-| Jakarta EE | 4.15 / 6.36 / 8.34 | 4.35 / 6.71 / 8.68 | 30% / 37% |
-| ASP.NET Core | 0.87 / 1.39 / 1.85 | 0.93 / 1.58 / 2.33 | 5% / 13% |
-
-## 5. Interpretation
-
-- **Both lock and CAS are correct, and in Java they cost the same** (0.81 vs 0.86 ms). The Java experiment is dominated by creating and joining 2,000 `CompletableFuture`s (≈ 180 bytes and one queue hand-off each), not by the decrement. The synchronization primitive is noise compared with the task overhead.
-- **In .NET the primitive matters: CAS is 6× faster than `lock`.** `Parallel.For` runs the loop body inline on a few workers with almost no per-iteration allocation (4.9 KB total), so the remaining cost really is contention. A contended `lock` makes threads spin and then block in the kernel; a failed CAS just retries.
-- **Lesson:** measure the operation you care about. "CAS is faster than locks" is true for the primitive and invisible in a workload whose overhead lies elsewhere.
-- Jakarta's higher HTTP latency comes from the managed executor plus the heavier request path (see Lab 01). It does not mean the algorithm is slower; the kernel is the same Java code as Spring's.
-
-## 6. Trade-offs
-
-| Approach | When | Limit |
+| Edition | atomic p50 / p99 | lock p50 / p99 |
 |---|---|---|
-| `synchronized` / `lock` | compound invariants over several fields; simplest to reason about | blocks under contention; never hold it across I/O |
-| CAS / `AtomicInteger` / `Interlocked` | a single variable with a conditional update | retry storms under extreme contention; more than one variable needs a lock or an immutable state object |
-| Database (`UPDATE … SET stock = stock - 1 WHERE id = ? AND stock > 0`) | **multi-instance** deployments, the real-world answer | round-trip per reservation; row-lock contention on hot products (see Lab 07 hot-row result) |
+| Spring Boot | 1.62 / 3.53 | 1.75 / 3.28 |
+| Jakarta EE | 4.15 / 8.34 | 4.35 / 8.68 |
+| ASP.NET Core | 0.87 / 1.85 | 0.93 / 2.33 |
 
-This lab is single-process by design. With two application instances, in-memory locks protect nothing; the invariant must live in the database or a distributed coordinator.
+## 8. Interpretation and trade-offs
 
-## 7. Reproduce
+**Observations**
+1. `unsafe` was wrong in 11–29 of 30 runs and oversold up to 85 %; `lock` and `atomic` were wrong in 0 of 180 runs.
+2. In Java, `lock` and `atomic` cost the same (0.81 vs 0.86 ms). In .NET, CAS is 6× faster (0.17 vs 1.04 ms).
 
-```powershell
-Invoke-RestMethod -Method Post 'http://localhost:8080/lab/concurrency/reserve?mode=unsafe&stock=100&requests=200'
-python tools/run_benchmark.py --suite engineering
-dotnet run -c Release -f net10.0 --project implementations/aspnet-core/Lab.Benchmarks -- --filter '*ReservationBench*'
-```
+**Explanation (supported by the allocation numbers)**
+- The Java experiment allocates ~180 bytes and one queue hand-off per attempt (355 KB per run). Task scheduling dominates, and the synchronization primitive disappears in the noise.
+- `Parallel.For` runs the body inline on a few workers with almost no allocation (4.9 KB), so what remains really is contention. A contended `lock` spins and then blocks in the kernel; a failed CAS just retries.
+
+**Conclusion:** both primitives are correct. "CAS is faster than locks" is true for the primitive and irrelevant when the overhead lies elsewhere, so measure the operation you care about. The failure rate of `unsafe` varies by executor (11 vs 29 of 30), which is why a race "that passed the tests" proves nothing.
+
+| Approach | Use when | Limit |
+|---|---|---|
+| lock | invariants spanning several fields | blocks under contention; never hold it across I/O |
+| CAS | one variable, conditional update | retry storms under extreme contention |
+| database (`UPDATE … SET stock = stock − 1 WHERE id = ? AND stock > 0`) | **several application instances** | one round trip per reservation; hot-row contention (see Lab 07) |
+
+## 9. Limitations
+
+- Single process: with two application instances an in-memory lock protects nothing. The real-world answer is the database or a distributed coordinator, which is not implemented here.
+- HTTP numbers come from one run per mode; kernel numbers have JMH/BDN confidence intervals.
+
+## 10. Use cases and interview questions
+
+- *Where else does check-then-act appear?* Seat booking, coupon redemption, rate-limit counters, "create user if not exists".
+- *Why is a `ConcurrentHashMap` not enough for stock?* Each `get` and `put` is atomic, but the pair is not. Use `compute`/`merge` or a lock.
+- *Lock or CAS?* Both are correct; choose by contention and by the shape of the invariant; measure.
+- *How would you do this with 5 instances?* Conditional `UPDATE` in the database, or reservation tokens with idempotency keys.

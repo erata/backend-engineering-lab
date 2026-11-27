@@ -20,7 +20,7 @@ How to use this guide: run the lab, read its README, then practise explaining th
 | What problem do virtual threads solve? | Thread-per-request code that **blocks on I/O** stops being limited by the number of OS threads: a blocked virtual thread unmounts from its carrier. | Lab 04: 400 req/s of 600 ms blocking calls, platform pool saturates, virtual threads keep up at upstream latency |
 | What don't they solve? | CPU-bound work, downstream limits (DB pool, rate limits), and code that pins carriers (JDK 21: blocking inside `synchronized`). | Lab 05 (CPU), Lab 08 (real pool), Lab 04 pinning experiment |
 | Java 17 vs Java 25 – faster? | For a thread-bound workload, no: the bottleneck is the pool size, not the JIT or GC. The gain came from the thread model. | Lab 04: Java 17 and 25 with platform threads behave the same |
-| What is ThreadPool starvation in .NET? | Blocking a pool thread on an async operation (`.Result`, `.GetAwaiter().GetResult()`) while the continuation needs a pool thread too; the pool grows slowly, so requests queue with idle CPU. | Lab 03/04: sync-over-async fails at 50 req/s with ~2 % CPU |
+| What is ThreadPool starvation in .NET? | Blocking a pool thread on an async operation (`.Result`, `.GetAwaiter().GetResult()`) while the continuation needs a pool thread too; the pool grows slowly, so requests queue with idle CPU. | Lab 03/04: sync-over-async failed up to 100 % of requests at 1–3 % CPU on every cold start, and survived on a warmed-up pool |
 | How do you size a thread pool? | I/O: by Little's law (throughput × latency = concurrency) *and* the downstream limit. CPU: ≈ number of usable cores under sustained load. | Lab 04 ceiling ≈ 200 / 0.6 s; Lab 05 quota results |
 
 ## 3. Caching and consistency
@@ -36,7 +36,7 @@ How to use this guide: run the lab, read its README, then practise explaining th
 
 | Question | Answer | Evidence |
 |---|---|---|
-| Is a singleton thread-safe? | Lifetime says nothing about thread safety. A singleton must be stateless or immutable, or synchronize its state. | Lab 06: "current user" in a singleton field returned another user's name under concurrency |
+| Is a singleton thread-safe? | Lifetime says nothing about thread safety. A singleton must be stateless or immutable, or synchronize its state. | Lab 06: "current user" in a singleton field was wrong in 95–98 % of concurrent responses |
 | What is a captive dependency? | A short-lived dependency held by a longer-lived object, which silently extends its lifetime (.NET scoped-in-singleton, Spring prototype-in-singleton, CDI `@Dependent` in `@ApplicationScoped`). | Lab 06 `captive` |
 | Who disposes container-created objects? | .NET: the scope that resolved them (root = application lifetime). Spring: never for prototypes – the caller owns them. CDI: the owner of the `@Dependent` object, or `Instance.destroy()`. | Lab 06 `ownership` |
 | How do background workers get scoped services? | .NET: `IServiceScopeFactory.CreateScope()` per unit of work. CDI: `@ActivateRequestContext`. Spring: inject thread-safe singletons; request scope does not exist outside a request. | Lab 06 `ownership`, `background` |

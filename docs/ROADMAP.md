@@ -1,35 +1,76 @@
-# Implementation coverage and remaining work
+# Completion matrix, remaining work and release assessment
 
-Status as of 2026-11-26. "Verified" means it was built, run, and checked by a test, probe or benchmark ([VALIDATION_STATUS.md](VALIDATION_STATUS.md)).
+Status as of 2026-11-27. Legend:
 
-| Topic | Spring Boot | Jakarta EE | ASP.NET Core | Verified |
-|---|---|---|---|---|
-| 01 Cache / MySQL | 5 strategies, CRUD, journal + watermark, Testcontainers IT | shared 5 strategies, CRUD, journal/watermark/full | 5 strategies, CRUD, journal/watermark/full | all three: smoke + k6; Spring: IT + JMH |
-| 02 Concurrency | shared kernel (unsafe / lock / CAS) | shared kernel, managed executor | unsafe / lock / Interlocked | probes + JMH + BDN + k6 |
-| 03 Async HTTP | blocking, sequential-async, concurrent, concurrent-blocking | shared kernel, `CompletionStage` | sync-over-async, sequential `await`, `WhenAll` | k6, all three |
-| 04 Threads / runtimes | Java 17 / 25, platform / virtual | platform only (Undertow workers) | .NET 10 / 11 | k6, all configurations |
-| 05 CPU | shared kernel + JMH | shared kernel, managed executor | `Parallel.For` + BDN | JMH + BDN + CPU probe at 1/2/4/8 CPUs |
-| 06 DI | request scope / singleton | `@RequestScoped` / `@ApplicationScoped` | scoped / singleton | identity probe + k6 |
-| 07 Events | MySQL, `direct`, async AFTER_COMMIT `event`, negative `event-inline` | in-memory CDI observer | in-memory C# event | manual DB checks + k6 |
-| 08 Resources | semaphore pool + single-flight | same kernel | `SemaphoreSlim` + single-flight | probes, all three |
-| Redis | standalone TTL script | same | same | **not run** |
-| Observability | Actuator / optional Java agent | optional Java agent | conditional OTLP | **not run** |
+| Mark | Meaning |
+|---|---|
+| ✅ | implemented and verified (test, probe or benchmark with raw data) |
+| ◐ | implemented but not verified |
+| ◑ | partially implemented |
+| ✖ | not implemented |
+| – | not applicable to this framework |
 
-## Remaining work
+## 1. Completion matrix
 
-1. **Still missing variants**
-   - WildFly managed virtual-thread executor (Lab 04) and an explicit pinning experiment (`synchronized` around blocking I/O on JDK 21 vs 24+).
-   - Captive-dependency and leaked-mutable-state endpoints for Lab 06.
-   - Transactional events for Jakarta (`@Observes(during = AFTER_SUCCESS)` with JTA) and .NET (outbox), so that they match the Spring edition.
-   - A transactional outbox example for Lab 07 (would close the audit gap documented there).
-   - A real JDBC/ADO.NET pool-saturation benchmark (Lab 08); today the pool is a semaphore simulation. Lab 07 `event-inline` already shows real Hikari exhaustion.
-   - .NET cache microbenchmarks (BDN) equivalent to the JMH `CacheBenchmark`.
-2. **Performance follow-ups found by the benchmarks**
-   - Pre-sorted page index published with the snapshot, so pages stop sorting 100K entries per request (Lab 01; .NET `catalog-page` p50 47 ms).
-   - Profile the WildFly request path: ≈ 3.7 ms CPU per `catalog-get` versus ≈ 0.44 ms on Spring Boot at 4 CPUs (async-profiler / JFR). Check heap (`-Xmx512m` default), Yasson and RESTEasy settings.
-   - .NET `di-request`: the payload array lands on the LOH. A pooled or chunked payload would show the difference.
-3. **Measurement quality**
-   - Repeat every k6 configuration ≥ 5 times on a dedicated host and report the spread ([EXPERIMENT_PROTOCOL.md](EXPERIMENT_PROTOCOL.md)).
-   - Run Redis and the monitoring stack and check that OTel data from all three editions is ingested.
-   - Run the GitHub Actions workflow on a real remote.
-4. Do not claim full framework parity: the Jakarta/.NET event examples remain in-memory until item 1 is done.
+| Lab / feature | Spring Boot | Jakarta EE | ASP.NET Core | Evidence |
+|---|:---:|:---:|:---:|---|
+| **01** five cache strategies | ✅ | ✅ (shared core) | ✅ | unit tests, `compare_http.py`, k6 |
+| 01 journal sync incl. NULL timestamps, late commit | ✅ | ✅ | ✅ | `CatalogIT` (Spring); smoke + staleness probe (all) |
+| 01 watermark sync baseline | ✅ | ◐ | ◐ | `CatalogIT`; ports not tested |
+| 01 full-reload sync | – | ◐ | ◐ | implemented, not tested |
+| 01 cache microbenchmarks | ✅ JMH | ✅ (same code) | ✖ | JMH run |
+| 01 staleness window | ✅ | ✅ | ✅ | `v3-*` probes |
+| **02** unsafe / lock / CAS reservation | ✅ | ✅ | ✅ | 30-run probes, JMH, BDN, k6 |
+| 02 multi-instance (database) reservation | ✖ | ✖ | ✖ | documented as the real-world answer only |
+| **03** blocking / sequential-async / concurrent I/O | ✅ | ✅ | ✅ (blocking = sync-over-async) | k6, 5 runs |
+| 03 concurrent-blocking on platform / virtual pool | ◐ | – | – | endpoint exists, not benchmarked |
+| **04** platform vs virtual threads, 400 req/s | ✅ | ✅ (worker vs managed virtual executor) | – | k6, 5 / 3 runs |
+| 04 runtime versions | ✅ Java 17 vs 25 | – | ✅ .NET 10 vs 11 | k6 |
+| 04 pinning (JDK 21 vs 25) | ✅ | – | – | probe, 10 runs |
+| 04 ThreadPool starvation | – | – | ✅ | k6, investigation 4 |
+| **05** CPU parallelism + checksum | ✅ | ✅ | ✅ | probes at 1/2/4/8 CPUs, JMH, BDN |
+| **06** payload lifetime (request vs singleton) | ✅ | ✅ | ✅ | k6 |
+| 06 captive dependency | ✅ | ✅ | ✅ | `di2` probe |
+| 06 shared mutable request state | ✅ | ✅ | ✅ | 3 × 200 concurrent requests |
+| 06 resource ownership | ✅ prototype | ✅ `Instance` | ✅ root vs scope | `ownership` probe |
+| 06 request context in background work | – | ✅ `@ActivateRequestContext` | ✅ scope per unit of work | probes |
+| 06 DbContext / EntityManager lifecycle | ✖ | ✖ | ✖ | no ORM in this lab |
+| **07** direct vs after-commit event, rollback | ✅ | ✅ (JTA) | ✅ (outbox) | probes, k6 |
+| 07 handler failure | ✅ | ✅ | ✅ | `failure` probe |
+| 07 inline after-commit (negative) | ✅ (deadlock) | ✅ (no deadlock) | – | k6 |
+| 07 transactional outbox | ✖ | ✖ | ✅ | `failure` probe |
+| **08** in-process stampede / semaphore | ✅ | ✅ | ✅ | probes |
+| 08 real connection pool | ✅ Hikari | ✅ WildFly | ✅ MySqlConnector | k6 |
+| 08 Redis shared cache (2 instances, lock, invalidation, failure) | ✅ | ✖ | ✖ | `redis`, `redis2` probes, k6 |
+| 08 Redis TTL demo | ◐ | ◐ | ◐ | script, not run separately |
+| Observability: metrics + traces | ✅ | ✅ | ✅ | [validation](../reports/observability/2026-11-27-validation.md) |
+| Observability: Grafana dashboard | ✅ | ◑ (Explore only) | ◑ (Explore only) | same |
+| CI workflow | ◐ | ◐ | ◐ | pushed, result not inspected |
+
+## 2. Remaining defects and limitations
+
+**Open observations (measured, not explained)**
+1. Jakarta handled the 200 req/s hot-row `direct` workload (p50 14.5 ms) where Spring and .NET collapsed.
+2. Why run 1's virtual-thread measurement was not affected by the threaded mock.
+3. WildFly needs more CPU per catalogue request than Spring (it saturates near 2,000 req/s at 4 CPUs); not profiled.
+4. The .NET client-span count in the observability check (17 vs 15 expected).
+
+**Known limitations**
+- One machine, mostly single runs outside the repeated experiments; Docker quotas on a hybrid laptop.
+- In-process outbox dispatcher only; Redis lock is a lab simplification (no fencing).
+- Jakarta/.NET dashboards, agent overhead and .NET 11 local unit tests were not covered.
+- NuGet packages with moderate advisories (NU1902) should be bumped before reuse.
+
+**Failed / superseded experiments (kept as raw data, not quoted)**
+- v2 `io-blocking-400rps` and `io-blocking-async-*` rows (threaded mock, F8).
+- `v4-rep3-jakarta-saturation` in run 20261127T063929Z (before F9).
+- Jakarta/.NET rows of run 1 (harness spill-over, Nagle, warm-up).
+- Run 20261127T021849Z stopped by host standby after two complete phases (data of those phases valid).
+
+## 3. Clean-checkout reproduction
+
+<!-- CLEAN-CHECKOUT -->
+
+## 4. Release assessment
+
+The project is a **reproducible engineering lab and reference**, not a production application and not a framework ranking. All eight labs have implemented, tested and measured core scenarios in all three frameworks where the scenario applies. The gaps (✖ above) are deliberate scope limits or listed future work, not hidden failures.

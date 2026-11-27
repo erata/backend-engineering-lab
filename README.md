@@ -4,7 +4,7 @@
 
 An independently runnable, cross-framework engineering laboratory. Three implementations of one small product-catalogue scenario explore the same engineering questions without requiring a distributed product architecture. The focus is learning, correctness, repeatability and trade-offs, not declaring a universal framework winner.
 
-> **Release status (2026-11-26): built, tested and benchmarked.** All three editions build, pass their tests and the common HTTP contract in Docker. All eight labs have measured JMH, BenchmarkDotNet and k6 results. Seven defects found during validation were fixed ([Validation status](docs/VALIDATION_STATUS.md)). Some advanced variants from the original plan are still open ([Roadmap](docs/ROADMAP.md)), Redis and the monitoring stack were not executed, and the Jakarta/.NET event examples are in-memory.
+> **Release status (2026-11-27): built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Thirteen defects found during validation were fixed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
 >
 > **Results:** [Consolidated benchmark report](reports/BENCHMARK_REPORT.md) · [Benchmark guide](docs/BENCHMARKS.md)
 
@@ -68,14 +68,14 @@ Each lab README contains the use case, invariants, the implementation per framew
 
 | Lab | Use case | Headline result | Start here |
 |---|---|---|---|
-| 01 | 100K-product cache refreshed while being read | snapshot reads 19× faster than a global lock (JMH), but a batch copies the whole map (33 batches/s) | [Product cache](labs/01-product-cache/README.md), [Evaluation](labs/01-product-cache/EVALUATION.md), [Synchronization](docs/SYNCHRONIZATION.md) |
+| 01 | 100K-product cache refreshed while being read | snapshot reads 19× faster than a global lock (JMH) but copies the map per batch (33 batches/s); staleness ≤ 10 s refresh | [Product cache](labs/01-product-cache/README.md), [Evaluation](labs/01-product-cache/EVALUATION.md), [Synchronization](docs/SYNCHRONIZATION.md) |
 | 02 | Flash-sale stock reservation | unsafe oversold in 11–29 of 30 runs; lock/CAS 0 failures; CAS 6× faster than lock in .NET only | [Concurrency](labs/02-concurrency/README.md) |
-| 03 | Aggregating three slow services | concurrent 303 ms vs 605 ms; .NET sync-over-async starves at 50 req/s | [Async I/O](labs/03-async-io/README.md) |
-| 04 | Blocking I/O under load: Java 17/25, platform/virtual | virtual threads 392 req/s at 605 ms vs platform ~270–320 req/s at 2.5–4.5 s; Java 17 = 25 | [Thread models](labs/04-virtual-threads/README.md) |
+| 03 | Aggregating three slow services | concurrent 303 ms vs 605 ms sequential (5 runs, all stacks); .NET sync-over-async starves on a cold start | [Async I/O](labs/03-async-io/README.md) |
+| 04 | Blocking I/O under load, Java 17/25/21, platform/virtual, WildFly, .NET 10/11 | virtual threads 392 req/s at 606 ms vs platform 324 req/s at 2.4 s; Java 17 = 25; JDK 21 pinning; WildFly virtual executor needs `maxAsync` | [Thread models](labs/04-virtual-threads/README.md) |
 | 05 | CPU-bound recalculation on 1–8 CPUs | ~4–5× speed-up with 8 workers; speed-up capped by the CPU quota | [Multicore](labs/05-cpu-parallelism/README.md) |
-| 06 | Heavy object per request vs singleton | 3–15× CPU; .NET p95 43 ms from LOH allocations | [Dependency injection](labs/06-dependency-injection/README.md) |
-| 07 | Price change + audit: direct vs event | hot-row lock collapse in `direct`; connection-pool deadlock in `event-inline` | [Domain events](labs/07-domain-events/README.md) |
-| 08 | Cache stampede and scarce resources | single-flight 1 load vs 8–100; stampede size = effective concurrency | [Resource management](labs/08-resource-management/README.md) |
+| 06 | DI lifetimes, captive dependencies, ownership, shared state | singleton "current user" wrong in 95–98 % of concurrent responses; per-request payload 3–15× CPU | [Dependency injection](labs/06-dependency-injection/README.md) |
+| 07 | Price change + audit: direct, after-commit event, outbox | hot-row collapse in `direct`; Hikari deadlock in `event-inline`; after-commit audit lost on failure, outbox recovers it | [Domain events](labs/07-domain-events/README.md) |
+| 08 | Stampede, real DB pool, Redis across 2 instances | single-flight 1 load vs 8–100; Redis lock 1 vs local 2; pool 5 × 30 ms ≈ 160 req/s everywhere | [Resource management](labs/08-resource-management/README.md) |
 
 The earlier release sequence is now a navigation and learning sequence, not a claim that every numbered production release has been built or validated. See the [implementation coverage matrix](docs/ROADMAP.md) for explicit differences and remaining work.
 
@@ -106,7 +106,7 @@ docker compose --profile dotnet up -d --build dotnet mock-api
 python tools/compare_http.py --url http://localhost:8082
 ```
 
-The smoke test expects a clean seed, safe strategy and journal mode. Database volumes persist between runs. **Destructive reset** for this disposable lab only: `docker compose --profile jakarta --profile dotnet down -v`. The Jakarta/.NET schema is provisioned on first database startup by the shared SQL initialization mount. An older volume lacking that schema must be migrated or reset. Lab endpoints are local-only; there is no production authentication. Bind published ports to loopback, and do not deploy the unsafe modes to public networks.
+The smoke test expects a clean seed, safe strategy and journal mode. Database volumes persist between runs. **Destructive reset** for this disposable lab only (removes all lab databases): `docker compose -f docker-compose.yml -f docker-compose.redis.yml --profile jakarta --profile dotnet down -v`. All three databases are re-seeded with 100,000 products on the next start. The Jakarta/.NET schema is provisioned on first database startup by the shared SQL initialization mount. An older volume lacking that schema must be migrated or reset. Lab endpoints are local-only; there is no production authentication. Bind published ports to loopback, and do not deploy the unsafe modes to public networks.
 
 ### Runtime comparisons
 
@@ -190,19 +190,17 @@ Maven must run on JDK 25 (`JAVA_HOME`). Without a .NET 11 SDK, set `$env:LabTarg
 
 ## 9. Observability and resource experiments
 
-The optional Compose monitoring stack provisions Prometheus, Grafana, Tempo and an OpenTelemetry collector. Spring exposes Actuator metrics, while Java tracing requires a separately downloaded official OpenTelemetry Java agent. The .NET project configures OTLP only when an endpoint is supplied. These are candidate integrations pending runtime validation. The preconfigured dashboard focuses on Spring; explore other telemetry in Grafana/Tempo after confirming ingestion. Follow [Observability guide](docs/OBSERVABILITY.md). Benchmark instrumentation on and off separately.
+The optional monitoring overlay (OpenTelemetry Collector, Prometheus, Tempo, Grafana) was verified on 2026-11-27: metrics and traces from all three editions arrive (Java agent 2.34.0 for Spring and WildFly, OTel SDK for .NET). The provisioned dashboard covers Spring; Jakarta and .NET are explored in Grafana Explore. See [Observability](docs/OBSERVABILITY.md) and the [validation record](reports/observability/2026-11-27-validation.md). Benchmarks were run without instrumentation.
 
-Redis is an optional standalone TTL/share demonstration (not a distributed catalogue cache). The semaphore pool experiment models scarce capacity and timeout; it does not claim to measure actual database connection pool performance. Both distinctions are intentional and documented.
+Redis is used for a real two-instance shared-cache experiment in Lab 08 (`docker-compose.redis.yml`: Redis + second Spring instance) covering stampede coordination, cross-instance staleness, invalidation and Redis failure; `tools/redis_lab.py` is only a standalone TTL demonstration. The real connection-pool experiment uses Hikari, WildFly datasources and MySqlConnector pools; the semaphore "pool" is a separate simplified model.
 
 ## 10. Out of scope and limitations
 
-- Public deployment, authentication, UI, Kubernetes, RabbitMQ, distributed transaction guarantees, CDC, multi-consumer journal offsets and production disaster recovery.
-- No universal performance ranking: measured numbers come from one workstation, mostly one run per configuration, and are indicative ([report](reports/BENCHMARK_REPORT.md) §Limitations).
-- No complete transactional CDI/.NET domain-event parity: those two examples use in-memory event dispatch, while Spring demonstrates an actual transactional listener. The distinction is part of the lab.
-- No managed virtual-thread executor configuration for WildFly in this source candidate; Java virtual-thread comparisons are implemented in the Spring edition. No Java 21 runtime benchmark profile or pinning-focused experiment is included.
-- The DI experiment implements heavy-object lifetime comparison, not every captive-dependency and shared mutable-state variant from the initial discussion. A production-grade cache eviction/load policy, true DB-pool benchmark and multi-instance Redis-backed catalogue are future extensions.
-- No fully equivalent integration test suite for all ports. The common smoke script covers selected common contracts. See coverage and validation documents for the exact state.
-
+- Out of scope: public deployment, authentication, UI, Kubernetes, message brokers, distributed transactions, CDC, multi-consumer journal offsets, production disaster recovery.
+- No universal performance ranking: one workstation, Docker CPU quotas, headline comparisons repeated 3–5 times, others single runs ([report](reports/BENCHMARK_REPORT.md) §5).
+- Deliberate scope limits: the transactional outbox exists in .NET only; Redis shared caching in Spring only; no ORM, so no DbContext/EntityManager lifecycle; Redis lock without fencing tokens.
+- Open, unexplained observations and every remaining gap are listed in the [completion matrix](docs/ROADMAP.md).
+- Lab endpoints are local-only and unauthenticated; never deploy the negative modes (`unsafe`, `event-inline`, singleton user holder).
 ## 11. Developer documentation
 
 - [Architecture & developer guide](docs/DEVELOPER_GUIDE.md)
