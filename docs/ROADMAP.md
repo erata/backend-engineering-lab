@@ -41,7 +41,7 @@ Status as of 2026-11-27. Legend:
 | 07 transactional outbox | ✖ | ✖ | ✅ | `failure` probe |
 | **08** in-process stampede / semaphore | ✅ | ✅ | ✅ | probes |
 | 08 real connection pool | ✅ Hikari | ✅ WildFly | ✅ MySqlConnector | k6 |
-| 08 Redis shared cache (2 instances, lock, invalidation, failure) | ✅ | ✖ | ✖ | `redis`, `redis2` probes, k6 |
+| 08 Redis shared cache (2 instances, lock, invalidation, failure) | ✅ | ✅ | ✅ | `redis`, `redis2` probes, k6; clients Lettuce / Jedis / StackExchange.Redis compared |
 | 08 Redis TTL demo | ◐ | ◐ | ◐ | script, not run separately |
 | Observability: metrics + traces | ✅ | ✅ | ✅ | [validation](../reports/observability/2026-11-27-validation.md) |
 | Observability: Grafana dashboard | ✅ | ◑ (Explore only) | ◑ (Explore only) | same |
@@ -81,7 +81,7 @@ Performed on 2026-11-27 from a fresh `git clone` of the committed state into an 
 | Compose: Spring (default) | `docker compose up -d --build mysql mock-api app`; `compare_http.py`; `smoke_api.py` | both **pass** |
 | Compose: Jakarta (`--profile jakarta`) | `compare_http.py` | **failed (404)** → defect **F14** found and fixed; repeated from a new clone: **pass** |
 | Compose: .NET (`--profile dotnet`) | `compare_http.py` | **pass** |
-| Compose: Redis overlay | `-f docker-compose.redis.yml up … redis app app2`; load via instance A, read via instance B | B served from Redis, 1 load |
+| Compose: Redis overlay | `-f docker-compose.redis.yml up … redis app app2` (Jakarta: `jakarta jakarta2`, .NET: `dotnet dotnet2`); load via instance A, read via instance B | B served from Redis, 1 load |
 | Chart regeneration | `python tools/make_charts.py` | content identical; output made deterministic (hash salt, no date) and verified byte-identical across two generations |
 | Reset | `docker compose … down -v` | volumes removed; the next start re-seeds 100,000 products |
 

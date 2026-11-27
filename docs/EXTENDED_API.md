@@ -1,6 +1,6 @@
 # Experimental API reference
 
-Lab routes are local-only. Enable them with Spring `SPRING_PROFILES_ACTIVE=lab`; the Jakarta and .NET Compose services set `LAB_ENABLED=true`. Default host ports are 8080 (Spring), 8081 (Jakarta), 8082 (.NET) and 8083 (second Spring instance, Redis overlay); override them with `LAB_PORT`, `JAKARTA_PORT`, `DOTNET_PORT` and `LAB_PORT2`. The benchmark suite uses 18080–18083.
+Lab routes are local-only. Enable them with Spring `SPRING_PROFILES_ACTIVE=lab`; the Jakarta and .NET Compose services set `LAB_ENABLED=true`. Default host ports are 8080 (Spring), 8081 (Jakarta), 8082 (.NET), and for the second instances of the Redis overlay 8083 (Spring), 8084 (Jakarta) and 8085 (.NET); override them with `LAB_PORT`, `JAKARTA_PORT`, `DOTNET_PORT`, `LAB_PORT2`, `JAKARTA_PORT2` and `DOTNET_PORT2`. The benchmark suite uses 18080–18085.
 
 Field names match across editions wherever the experiment exists in more than one; error payloads differ.
 
@@ -61,7 +61,7 @@ Field names match across editions wherever the experiment exists in more than on
 | `GET /lab/resources/stampede?single&requests` | all | in-process single-flight |
 | `GET /lab/resources/pool?requests&permits` | all | semaphore model of a scarce resource |
 | `GET /lab/resources/db?pool=5\|20&ms=30` | all | **real** JDBC/ADO.NET pool; holds a connection for `SELECT SLEEP(ms)`; 503 when no connection is free in time |
-| `GET /lab/redis/product/{id}?mode=none\|local\|distributed` | Spring + Redis overlay | Redis cache-aside, MySQL + 100 ms on a miss; falls back to MySQL when Redis is down (`source: db-fallback`) |
-| `POST /lab/redis/invalidate?id`, `POST /lab/redis/reset?id`, `GET /lab/redis/loads?id` | Spring + Redis | invalidation, reset, cross-instance load counter |
+| `GET /lab/redis/product/{id}?mode=none\|local\|distributed` | all + Redis overlay | Redis cache-aside, MySQL + 100 ms on a miss; falls back to MySQL when Redis fails (`source: db-fallback`, `error` = client exception type) |
+| `POST /lab/redis/invalidate?id`, `POST /lab/redis/reset?id`, `GET /lab/redis/loads?id` | all + Redis overlay | invalidation, reset, cross-instance load counter; `loads` also returns `fallbacks` (per instance, since startup) and `client` (Lettuce, Jedis + `poolMax`, StackExchange.Redis) |
 
 The common catalogue contract is [OpenAPI](../shared/contracts/openapi.yaml). `tools/compare_http.py` exercises the shared lab routes on every edition.

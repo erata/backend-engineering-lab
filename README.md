@@ -61,7 +61,7 @@ Each edition owns its database and cache. They do not call one another. Java edi
 | Scheduling | `@Scheduled` | ManagedScheduledExecutorService | BackgroundService / PeriodicTimer |
 | Concurrency | ExecutorService | ManagedExecutorService | Task, Parallel, Interlocked |
 | In-memory cache | HashMap, lock, ConcurrentHashMap, atomic snapshot, Caffeine | Same Java kernel | Dictionary, lock, ConcurrentDictionary, immutable dictionary, MemoryCache |
-| Shared cache | Redis 7.4 (Spring Data Redis), two app instances, `SET NX PX` lock | — | — |
+| Shared cache (Redis 7.4, two instances, `SET NX PX` lock) | Lettuce (Spring Data Redis) | Jedis 8 (connection pool) | StackExchange.Redis 3 |
 | Testing | JUnit, Testcontainers, JMH | Java core tests, HTTP contract smoke | xUnit, BenchmarkDotNet, HTTP contract smoke |
 | Load and observability (all) | k6 (in Docker), OpenTelemetry (Java agent / .NET SDK), Collector, Prometheus, Tempo, Grafana | | |
 
@@ -80,7 +80,7 @@ Each lab README contains the use case, invariants, the implementation per framew
 | 05 | CPU-bound recalculation on 1–8 CPUs | ~4–5× speed-up with 8 workers; speed-up capped by the CPU quota | [Multicore](labs/05-cpu-parallelism/README.md) |
 | 06 | DI lifetimes, captive dependencies, ownership, shared state | singleton "current user" wrong in 95–98 % of concurrent responses; per-request payload 3–15× CPU | [Dependency injection](labs/06-dependency-injection/README.md) |
 | 07 | Price change + audit: direct, after-commit event, outbox | hot-row collapse in `direct`; Hikari deadlock in `event-inline`; after-commit audit lost on failure, outbox recovers it | [Domain events](labs/07-domain-events/README.md) |
-| 08 | Stampede, real DB pool, Redis across 2 instances | single-flight 1 load vs 8–100; Redis lock 1 vs local 2; pool 5 × 30 ms ≈ 160 req/s everywhere | [Resource management](labs/08-resource-management/README.md) |
+| 08 | Stampede, real DB pool, Redis across 2 instances, Redis clients compared | single-flight 1 load vs 8–100; Redis lock 1 vs local 2; pool 5 × 30 ms ≈ 160 req/s everywhere; same 500 ms timeout, outage latency 4 / 507 / 1,000 ms by client | [Resource management](labs/08-resource-management/README.md) |
 
 The earlier release sequence is now a navigation and learning sequence, not a claim that every numbered production release has been built or validated. See the [implementation coverage matrix](docs/ROADMAP.md) for explicit differences and remaining work.
 
@@ -155,7 +155,7 @@ Set `$env:LAB_CACHE_STRATEGY='snapshot'` (default), `synchronized`, `concurrent`
 | GET | `/lab/di/mutable?mode=singleton&user=X` | Shared mutable state (also `/lab/di/captive`, `/lab/di/ownership`) |
 | GET | `/lab/events/state?id=1` | Audit count / outbox state after an event experiment |
 | GET | `/lab/threads/pinning?mode=synchronized` | Virtual-thread pinning (Spring, Java 21+) |
-| GET | `/lab/redis/product/42?mode=distributed` | Redis shared cache across two instances (Spring + Redis overlay) |
+| GET | `/lab/redis/product/42?mode=distributed` | Redis shared cache across two instances (all editions, Redis overlay) |
 
 Use the [catalogue OpenAPI contract](shared/contracts/openapi.yaml) for common payloads and [extended API reference](docs/EXTENDED_API.md) for experimental endpoints. The older [API guide](docs/API.md) describes the detailed Spring contract; the ports are not claimed to implement identical error payloads or readiness/status fields. Product writes are eventually visible after refresh, not read-your-writes. No price or stock fields were added to the original Product record; those experiments use separate state.
 
@@ -202,13 +202,13 @@ Maven must run on JDK 25 (`JAVA_HOME`). Without a .NET 11 SDK, set `$env:LabTarg
 
 The optional monitoring overlay (OpenTelemetry Collector, Prometheus, Tempo, Grafana) was verified on 2026-11-27: metrics and traces from all three editions arrive (Java agent 2.34.0 for Spring and WildFly, OTel SDK for .NET). The provisioned dashboard covers Spring; Jakarta and .NET are explored in Grafana Explore. See [Observability](docs/OBSERVABILITY.md) and the [validation record](reports/observability/2026-11-27-validation.md). Benchmarks were run without instrumentation.
 
-Redis is used for a real two-instance shared-cache experiment in Lab 08 (`docker-compose.redis.yml`: Redis + second Spring instance) covering stampede coordination, cross-instance staleness, invalidation and Redis failure; `tools/redis_lab.py` is only a standalone TTL demonstration. The real connection-pool experiment uses Hikari, WildFly datasources and MySqlConnector pools; the semaphore "pool" is a separate simplified model.
+Redis is used for a real two-instance shared-cache experiment in Lab 08 (`docker-compose.redis.yml`: Redis + a second instance of each edition) covering stampede coordination, cross-instance staleness, invalidation and Redis outages, and comparing three clients (Lettuce, Jedis, StackExchange.Redis); `tools/redis_lab.py` is only a standalone TTL demonstration. The real connection-pool experiment uses Hikari, WildFly datasources and MySqlConnector pools; the semaphore "pool" is a separate simplified model.
 
 ## 10. Out of scope and limitations
 
 - Out of scope: public deployment, authentication, UI, Kubernetes, message brokers, distributed transactions, CDC, multi-consumer journal offsets, production disaster recovery.
 - No universal performance ranking: one workstation, Docker CPU quotas, headline comparisons repeated 3–5 times, others single runs ([report](reports/BENCHMARK_REPORT.md) §6).
-- Deliberate scope limits: the transactional outbox exists in .NET only; Redis shared caching in Spring only; no ORM, so no DbContext/EntityManager lifecycle; Redis lock without fencing tokens.
+- Deliberate scope limits: the transactional outbox exists in .NET only; one Redis client per edition; no ORM, so no DbContext/EntityManager lifecycle; Redis lock without fencing tokens.
 - Open, unexplained observations and every remaining gap are listed in the [completion matrix](docs/ROADMAP.md).
 - Lab endpoints are local-only and unauthenticated; never deploy the negative modes (`unsafe`, `event-inline`, singleton user holder).
 ## 11. Developer documentation

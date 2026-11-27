@@ -6,8 +6,8 @@
 implementations/spring-boot/cache-core/     Pure Java cache strategies + experiment kernels (shared by Spring and Jakarta)
 implementations/spring-boot/app/            Spring Boot 4.2: controllers, JDBC, scheduler, events, Redis, DB pool, DI labs
 implementations/spring-boot/benchmarks-jmh/ JMH benchmarks against the shared kernels
-implementations/jakarta-ee/                 Jakarta EE 11 WAR for WildFly 42: JAX-RS, CDI, JTA datasources, managed executors
-implementations/aspnet-core/Lab.Api/        ASP.NET Core minimal API (.NET 10/11), ADO.NET, outbox, DI labs
+implementations/jakarta-ee/                 Jakarta EE 11 WAR for WildFly 42: JAX-RS, CDI, JTA datasources, managed executors, Redis (Jedis)
+implementations/aspnet-core/Lab.Api/        ASP.NET Core minimal API (.NET 10/11), ADO.NET, outbox, DI labs, Redis (StackExchange.Redis)
 implementations/aspnet-core/Lab.Tests/      xUnit tests for the .NET kernels
 implementations/aspnet-core/Lab.Benchmarks/ BenchmarkDotNet (CPU, reservation)
 labs/NN-*/README.md                         one document per lab: problem, concepts, code, tests, benchmarks, results
@@ -62,6 +62,7 @@ flowchart LR
 | Wrong-scope detection | scoped proxy makes request beans safe to inject into singletons; prototype-in-singleton is silently captured | normal scopes are proxied (safe); `@Dependent` is captured by its owner | `ValidateScopes` throws only in Development; in Production a scoped service resolved from root silently becomes a singleton |
 | Transactions | `@Transactional` on JDBC (`DataSourceTransactionManager`) | JTA (`@Transactional`, container datasources) | explicit `MySqlTransaction` |
 | After-commit work | `@TransactionalEventListener(AFTER_COMMIT)` | `@Observes(during = AFTER_SUCCESS)` | outbox table + `BackgroundService` |
+| Redis client (Lab 08) | Lettuce via Spring Data Redis: one shared, multiplexed connection | Jedis 8 `RedisClient`: one pooled connection per command (`REDIS_POOL_MAX`, default 8) | StackExchange.Redis: one multiplexed connection, async API |
 
 ## 4. Adding an experiment
 

@@ -49,7 +49,7 @@ All experiments use the `constant-arrival-rate` executor: k6 sends requests at t
 | `events-direct`, `events-event`, `events-event-inline` | 07 | `POST /lab/events/price-change?mode=…` (one hot row) | 200/s | 30 s (inline 20 s) |
 | `io-blocking-async-{default,virtual}-400rps` | 04 | Jakarta `GET /lab/io/blocking-async?executor=…` | 400/s | 30 s |
 | `dbpool-{5,20}-{100,300}rps` | 08 | `GET /lab/resources/db?pool=…&ms=30` (real pool) | 100 / 300/s | 30 s |
-| `redis-get` | 08 | `GET /lab/redis/product/42?mode=distributed` (Redis hit) | 2,000/s | 30 s |
+| `redis-get` | 08 | `GET /lab/redis/product/42?mode=distributed` (Redis hit), on each edition with its own client | 2,000/s | 30 s |
 
 ### 2.4 Phases (backend configurations)
 
@@ -71,6 +71,8 @@ All experiments use the `constant-arrival-rate` executor: k6 sends requests at t
 | `v2-redis-spring`, `v3-redis-spring` | Spring × 2 + Redis | shared-cache stampede; consistency, invalidation, Redis down |
 | `v3-*` | each backend | ownership, handler failure, staleness probes |
 | `v4-*` | each backend | **all I/O experiments rerun** with the asyncio upstream (5 or 3 repetitions) |
+| `v5-redis-*` | each backend × 2 + Redis | Redis client comparison: Lettuce, Jedis (pool 8 / 64), StackExchange.Redis; `redis-get` 3×, `redis` and `redis2` probes |
+| `v5b-redis-jakarta-*` | Jakarta × 2 + Redis | Jedis 5× (WildFly warm-up), negative DNS cache off (`LAB_JAVA_TOOL_OPTIONS`) |
 
 Controls held fixed: `cpus: 4` (except the CPU phases), `mem_limit: 2g`, same 100K seed, same mock upstream, same k6 image (`grafana/k6:1.3.0`) on the same Docker network, one unrecorded warm-up per experiment (10 s; 30 s at ≥ 1,000 req/s), then the measured runs.
 
@@ -98,7 +100,7 @@ Harness rules learned the hard way (each one invalidated results before it exist
 | `staleness` | 01 | rename product 77, poll until served, 5 samples | ≤ refresh interval (10 s) |
 | `pinning` | 04 | 3 warm-up + 10 × 100 virtual threads sleeping 50 ms in a lock | pinned ≈ 1,250 ms, not pinned ≈ 50 ms |
 | `redis` | 08 | 5 rounds × 100 requests split over 2 instances per mode | `distributed` → 1 load |
-| `redis2` | 08 | stale read before/after invalidation; `docker stop` Redis | fallback to DB; catalogue unaffected |
+| `redis2` | 08 | stale read before/after invalidation; outage with `docker stop` and with `docker pause`: 10 sequential + 50 concurrent requests, then poll every 50 ms until Redis is used again | all requests served (DB fallback); catalogue unaffected; latency and recovery time reported |
 
 ## 3. How to reproduce
 

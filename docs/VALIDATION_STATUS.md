@@ -18,6 +18,7 @@ Last full validation: **2026-11-27** on Windows 11 (Intel i7-13700H, 20 logical 
 | Virtual-thread execution actually happens | `/lab/threads/info` (Spring `virtual=true`), `/lab/threads/executor` (WildFly `VirtualThread[#…]`) | **verified** |
 | Observability: metrics + traces for all three editions | [observability validation](../reports/observability/2026-11-27-validation.md) | **verified ingestion** in Prometheus, Tempo and Grafana |
 | Benchmarks: JMH, BDN, k6 (8 labs, 3 editions, repetitions) | see report | completed |
+| Redis on all editions (after v1.0.0): Jakarta/Jedis and .NET/StackExchange.Redis ports | Maven `clean package` (JDK 25), .NET build + xUnit 4/4, manual smoke on two instances each, then `run_http_suite.py --only v5` / `v5b` | **pass**: same invariants as Spring (`distributed` → 1 load on every round, stale read until invalidation, DB fallback during outages) |
 | Redis TTL demo | `tools/redis_lab.py` | not run separately (the Redis shared-cache experiment supersedes it) |
 | GitHub Actions | `.github/workflows/ci.yml` | passed: all three jobs (verify, dotnet, jakarta) green on 99c5f6a, the v1.0.0 commit, as checked in the GitHub UI on 2026-11-27 |
 
@@ -56,4 +57,4 @@ Commands and results of the fresh-clone build and tests: [ROADMAP.md §3](ROADMA
 - GitHub Actions results (see §1).
 - .NET 11 unit tests on a local SDK.
 - Agent/SDK overhead on benchmark numbers (benchmarks ran without instrumentation).
-- Redis cluster/replication, multiple outbox dispatchers, Jakarta/.NET Redis.
+- Redis cluster/replication, multiple outbox dispatchers, other Redis clients (Redisson, Lettuce on Jakarta).
