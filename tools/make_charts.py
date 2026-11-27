@@ -31,11 +31,11 @@ plt.rcParams.update({'svg.hashsalt': 'backend-lab', 'svg.fonttype': 'none', 'fon
 
 # ---------------------------------------------------------------- data loading
 def v2_runs():
-    """All run folders containing v2/v3/v4 phases, oldest first (a later run's phase replaces an earlier one with the same id)."""
+    """All run folders containing v2–v5 phases, oldest first (a later run's phase replaces an earlier one with the same id)."""
     out = []
     for d in sorted((ROOT / 'reports/http-runs').iterdir()):
         env = d / 'environment.json'
-        if env.exists() and any(p.startswith(('v2-', 'v3-', 'v4-')) for p in json.loads(env.read_text()).get('phases', [])):
+        if env.exists() and any(p.startswith(('v2-', 'v3-', 'v4-', 'v5-', 'v5b-')) for p in json.loads(env.read_text()).get('phases', [])):
             out.append(d)
     return out
 V2 = v2_runs()
@@ -325,6 +325,46 @@ def lab08(t, mode):
         title(fig, t, 'Lab 08 · Real connection pool: each request holds a connection for 30 ms', 'Dashed = offered load. Above capacity, requests wait and then fail (1 s pool timeout, WildFly 30 s).')
         save(fig, 'lab08-dbpool', mode, top=0.76)
 
+def lab08_redis(t, mode):
+    """Redis client comparison (v5/v5b): hit latency vs the in-process cache, and behaviour during a Redis outage."""
+    v = phases(V2)
+    need = ['v5-redis-spring', 'v5-redis-dotnet10', 'v5b-redis-jakarta-rep5', 'v5b-redis-jakarta-pool64-rep5', 'v5-redis-jakarta', 'v5b-redis-jakarta-dns0',
+            'v2-rep5-spring-j25-platform', 'v2-rep5-jakarta', 'v2-rep5-dotnet10']
+    if not all(p in v for p in need): return
+    def reps(pid, exp, keep=None): return [e['result'] for e in v[pid]['k6'] if e['id'] == exp and (keep is None or e['rep'] in keep)]
+    steady = [3, 4, 5]            # WildFly runs 1–2 are warm-up (in-process baseline: run 1)
+    rows = [('Lettuce\n(Spring)', reps('v2-rep5-spring-j25-platform', 'catalog-get'), reps('v5-redis-spring', 'redis-get')),
+            ('Jedis, pool 8\n(Jakarta)', reps('v2-rep5-jakarta', 'catalog-get', [2, 3, 4, 5]), reps('v5b-redis-jakarta-rep5', 'redis-get', steady)),
+            ('Jedis, pool 64\n(Jakarta)', reps('v2-rep5-jakarta', 'catalog-get', [2, 3, 4, 5]), reps('v5b-redis-jakarta-pool64-rep5', 'redis-get', steady)),
+            ('StackExchange\n.Redis (.NET)', reps('v2-rep5-dotnet10', 'catalog-get'), reps('v5-redis-dotnet10', 'redis-get'))]
+    fig, (a1, a2) = figure(t, w=8.6, h=3.3, ncols=2)
+    for ax, key, lbl in ((a1, 'p50', 'p50 latency (ms)'), (a2, 'p99', 'p99 latency (ms)')):
+        vals = {r[0]: {'in-process cache': med([x[key] for x in r[1]]), 'Redis hit': med([x[key] for x in r[2]])} for r in rows}
+        grouped_v(ax, t, list(vals), ['in-process cache', 'Redis hit'], vals, (lambda x: f'{x:.1f}') if key == 'p50' else (lambda x: f'{x:.0f}'), lbl + ', median of runs')
+        ax.tick_params(axis='x', labelsize=8)
+    lg = fig.legend(*a1.get_legend_handles_labels(), loc='upper right', bbox_to_anchor=(0.99, 0.86), ncols=2, frameon=False, fontsize=9)
+    for x in lg.get_texts(): x.set_color(t['ink2'])
+    fig.subplots_adjust(wspace=0.3)
+    title(fig, t, 'Lab 08 · Redis cache hit at 2,000 req/s, 4 CPUs, by client',
+          'p50: Redis adds 0.4–0.8 ms (Jedis 1–2.5 ms). p99 follows the framework: WildFly is slow without Redis too. Jakarta: runs 3–5.')
+    save(fig, 'lab08-redis-hit', mode, top=0.72)
+
+    out = [('Lettuce\n(Spring)', v['v5-redis-spring']['redis2']), ('Jedis\n(Jakarta)', v['v5-redis-jakarta']['redis2']),
+           ('Jedis, DNS\nneg. cache off', v['v5b-redis-jakarta-dns0']['redis2']), ('StackExchange\n.Redis (.NET)', v['v5-redis-dotnet10']['redis2'])]
+    if any('error' in o or 'redis_stopped' not in o for _, o in out): return
+    fig, (a1, a2) = figure(t, w=9.2, h=3.6, ncols=2)
+    vals = {l: {'Redis stopped': o['redis_stopped']['sequential_10']['median_ms'], 'Redis paused': o['redis_paused']['sequential_10']['median_ms']} for l, o in out}
+    grouped_v(a1, t, list(vals), ['Redis stopped', 'Redis paused'], vals, lambda x: f'{x:.0f}', 'ms per request while Redis is down\n(median of 10; DB fallback)')
+    a1.axhline(500, color=t['ink2'], linewidth=1, linestyle=(0, (4, 3))); a1.set_ylim(0, 1250)
+    a1.tick_params(axis='x', labelsize=8); legend(a1, t, a1.get_legend_handles_labels(), loc='upper left')
+    rec = [max(o['redis_stopped']['recovery_ms_after_restore'] or 60000, 1) for _, o in out]
+    hbars(a2, t, [l for l, _ in out], rec, [t['series'][1], t['critical'], t['series'][2], t['series'][0]], lambda x: f'{x:,.0f} ms', xmax=max(rec) * 1.45)
+    a2.set_xlabel('time until Redis is used again\nafter the container is started (ms)', color=t['ink2']); a2.tick_params(axis='y', labelsize=8)
+    fig.subplots_adjust(wspace=0.45)
+    title(fig, t, 'Lab 08 · Redis outage: fallback latency and recovery, by client',
+          'All clients: 500 ms timeouts (dashed). Stopped = container gone, name not resolvable; paused = TCP open, no replies.')
+    save(fig, 'lab08-redis-outage', mode, top=0.76)
+
 def repeatability(t, mode):
     v = phases(V2)
     items = [('Spring · Java 25 platform · 400 req/s blocking', 'v4-rep5-spring-j25-platform', 'io-blocking-400rps', 'rps'),
@@ -347,7 +387,7 @@ def repeatability(t, mode):
 
 def main():
     for mode, t in THEMES.items():
-        for chart in (lab01, lab02, lab03, lab04, lab05, lab06, lab07, lab08, repeatability):
+        for chart in (lab01, lab02, lab03, lab04, lab05, lab06, lab07, lab08, lab08_redis, repeatability):
             chart(t, mode)
     print('\n'.join(sorted(p.name for p in OUT.glob('*.svg'))))
 

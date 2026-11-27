@@ -18,11 +18,12 @@ ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT.name
 NETWORK = f'{PROJECT}_default'
 K6_IMAGE = 'grafana/k6:1.3.0'
-BACKENDS = {  # service, host port env, host port, compose profile
-    'spring':  dict(service='app',     port_env='LAB_PORT',     port=18080, profile=None),
-    'jakarta': dict(service='jakarta', port_env='JAKARTA_PORT', port=18081, profile='jakarta'),
-    'dotnet':  dict(service='dotnet',  port_env='DOTNET_PORT',  port=18082, profile='dotnet'),
+BACKENDS = {  # service, host port env, host port, compose profile; second instance for the Redis experiments (Lab 08)
+    'spring':  dict(service='app',     port_env='LAB_PORT',     port=18080, profile=None,      second='app2',     port2_env='LAB_PORT2',     port2=18083),
+    'jakarta': dict(service='jakarta', port_env='JAKARTA_PORT', port=18081, profile='jakarta', second='jakarta2', port2_env='JAKARTA_PORT2', port2=18084),
+    'dotnet':  dict(service='dotnet',  port_env='DOTNET_PORT',  port=18082, profile='dotnet',  second='dotnet2',  port2_env='DOTNET_PORT2',  port2=18085),
 }
+PORT2 = {b['port']: b['port2'] for b in BACKENDS.values()}
 
 # ---- experiment catalogue ------------------------------------------------------------------------
 def k6(id, lab, path, rate, method='GET', duration='30s', vus=100, max_vus=1000, note=''):
@@ -80,6 +81,18 @@ V2_PHASES = [
     phase('v3-jakarta', 'jakarta', {}, [], ['ownership', 'failure', 'staleness'], title='Jakarta: ownership, request context in workers, handler failure, staleness'),
     phase('v3-dotnet10', 'dotnet', {'DOTNET_VERSION': '10.0'}, [], ['ownership', 'failure', 'staleness'], title='.NET 10: ownership, outbox retry, staleness'),
     phase('v3-redis-spring', 'spring', J25P, [], ['redis2'], extra_ports=[18083], title='Spring x2 + Redis: consistency, invalidation, failure'),
+    # v5: the same Redis experiments on all three editions, to compare the clients (Lettuce, Jedis, StackExchange.Redis):
+    # hit throughput, stampede coordination, consistency, and behaviour while Redis is stopped or frozen.
+    phase('v5-redis-spring', 'spring', J25P, REDIS_GET, ['redis', 'redis2'], repeat=3, extra_ports=[18083], title='Spring x2 + Redis (Lettuce)'),
+    phase('v5-redis-jakarta', 'jakarta', {}, REDIS_GET, ['redis', 'redis2'], repeat=3, extra_ports=[18084], title='Jakarta x2 + Redis (Jedis, pool 8)'),
+    phase('v5-redis-jakarta-pool64', 'jakarta', {'REDIS_POOL_MAX': '64'}, REDIS_GET, ['redis'], repeat=3, extra_ports=[18084], title='Jakarta x2 + Redis (Jedis, pool 64)'),
+    phase('v5-redis-dotnet10', 'dotnet', {'DOTNET_VERSION': '10.0'}, REDIS_GET, ['redis', 'redis2'], repeat=3, extra_ports=[18085], title='.NET 10 x2 + Redis (StackExchange.Redis)'),
+    # v5b: WildFly is still warming up during the first 2,000 req/s run (also without Redis), so Jedis gets 5 repetitions;
+    # and a check of the slow Jedis recovery after `docker stop` with the JVM negative DNS cache disabled (default 10 s).
+    phase('v5b-redis-jakarta-rep5', 'jakarta', {}, REDIS_GET, [], repeat=5, extra_ports=[18084], title='Jakarta x2 + Redis (Jedis, pool 8), 5 repetitions'),
+    phase('v5b-redis-jakarta-pool64-rep5', 'jakarta', {'REDIS_POOL_MAX': '64'}, REDIS_GET, [], repeat=5, extra_ports=[18084], title='Jakarta x2 + Redis (Jedis, pool 64), 5 repetitions'),
+    phase('v5b-redis-jakarta-dns0', 'jakarta', {'LAB_JAVA_TOOL_OPTIONS': '-Dsun.net.inetaddr.negative.ttl=0'}, [], ['redis2'], extra_ports=[18084],
+          title='Jakarta x2 + Redis (Jedis), JVM negative DNS cache off'),
 ]
 
 PHASES = [
@@ -114,9 +127,9 @@ def sh(args, env=None, check=True, timeout=1800):
 def compose_env(ph):
     env = dict(os.environ)
     env.update({'SPRING_PROFILES_ACTIVE': 'lab', 'LAB_CPUS': str(ph['cpus']), 'LAB_MEMORY': '2g', 'LAB_CACHE_STRATEGY': 'snapshot',
-                'LAB_PORT2': '18083', 'REDIS_PORT': '16379'})
+                'REDIS_PORT': '16379', 'REDIS_POOL_MAX': '8'})
     for b in BACKENDS.values():
-        env[b['port_env']] = str(b['port'])
+        env[b['port_env']] = str(b['port']); env[b['port2_env']] = str(b['port2'])
     env.update(ph['env'])
     return env
 
@@ -145,9 +158,9 @@ def wait_ready(port, limit=300):
 def start(ph):
     env = compose_env(ph); b = BACKENDS[ph['backend']]
     redis = bool(ph['extra_ports'])
-    others = [x['service'] for k, x in BACKENDS.items() if k != ph['backend']] + ([] if redis else ['app2', 'redis'])
+    others = [s for k, x in BACKENDS.items() if k != ph['backend'] for s in (x['service'], x['second'])] + ([] if redis else [b['second'], 'redis'])
     compose(env, 'stop', *others)
-    compose(env, 'up', '-d', '--build', '--force-recreate', b['service'], 'mock-api', *(['redis', 'app2'] if redis else []), timeout=3600)
+    compose(env, 'up', '-d', '--build', '--force-recreate', b['service'], 'mock-api', *(['redis', b['second']] if redis else []), timeout=3600)
     wait_ready(b['port'])
     for p in ph['extra_ports']:
         wait_ready(p)
@@ -265,9 +278,11 @@ def probe_pinning(port):
                      'max_ms': max(r['elapsedMs'] for r in runs), 'carriers': runs[0]['carriers'], 'runtime': runs[0]['runtime']}
     return res
 
-def probe_redis(port, port2=18083):
+def probe_redis(port):
     """Lab 08: 50 concurrent misses on each of two instances (100 total) per mode; count loads in Redis."""
-    res = {}
+    port2 = PORT2[port]
+    # Fallbacks to MySQL since startup, i.e. during the k6 runs of this phase (Redis errors or, for Jedis, pool waits > 500 ms).
+    res = {'client_stats_after_k6': call(f'http://127.0.0.1:{port}/lab/redis/loads?id=1')}
     for mode in ('none', 'local', 'distributed'):
         loads, p50 = [], []
         for _ in range(5):
@@ -319,8 +334,40 @@ def probe_staleness(port, samples=5):
         time.sleep(1.7 * (i + 1))   # de-correlate the samples from the 10 s refresh period
     return {'samples_ms': out, 'median_ms': statistics.median(out), 'max_ms': max(out), 'refresh_interval_s': 10}
 
-def probe_redis2(port, port2=18083):
+def outage(a, kind):
+    """Redis stopped (container gone: connection refused / name not resolvable) or paused (TCP still accepted, no
+    replies): latency of the fallback path for 10 sequential and 50 concurrent requests, then the time until the
+    client serves from Redis again."""
+    redis_c = f'{PROJECT}-redis-1'; url = f'{a}/lab/redis/product/42?mode=distributed'
+    call(f'{a}/lab/redis/reset?id=42', 'POST'); call(url)             # warm connection(s), value cached
+    sh(['docker', kind, redis_c], check=False, timeout=120)
+    try:
+        seq = []
+        for _ in range(10):
+            t = time.perf_counter(); r = call(url); seq.append(((time.perf_counter() - t) * 1000, r['source'], r.get('error')))
+        rs, ms = parallel([url] * 50)
+        catalog_ok = call(f'{a}/api/products/42')['id'] == 42
+    finally:
+        sh(['docker', {'stop': 'start', 'pause': 'unpause'}[kind], redis_c], check=False, timeout=120)
+    t0 = time.perf_counter(); polls = 0; recovered = None
+    while time.perf_counter() - t0 < 60:
+        polls += 1
+        try:
+            if call(url, timeout=10)['source'] != 'db-fallback':
+                recovered = round((time.perf_counter() - t0) * 1000); break
+        except Exception:
+            pass
+        time.sleep(0.05)
+    seq_ms = [x[0] for x in seq]
+    return {'sequential_10': {'first_ms': round(seq_ms[0], 1), 'median_ms': round(statistics.median(seq_ms), 1), 'max_ms': round(max(seq_ms), 1),
+                              'sources': sorted({x[1] for x in seq}), 'errors': sorted({str(x[2]) for x in seq})},
+            'concurrent_50': {'p50_ms': round(statistics.median(ms), 1), 'max_ms': round(max(ms), 1),
+                              'sources': sorted({str(r.get('source', 'http-error')) for r in rs}), 'errors': sorted({str(r.get('error')) for r in rs})},
+            'catalog_api_still_ok': catalog_ok, 'recovery_ms_after_restore': recovered, 'recovery_polls': polls}
+
+def probe_redis2(port):
     """Lab 08: cross-instance consistency, explicit invalidation and Redis failure behaviour."""
+    port2 = PORT2[port]
     a, b = f'http://127.0.0.1:{port}', f'http://127.0.0.1:{port2}'; res = {}
     original = call(f'{a}/api/products/42')['name']
     def rename(n):
@@ -334,14 +381,9 @@ def probe_redis2(port, port2=18083):
     res['consistency'] = {'db_value': new, 'instance_b_before_invalidate': stale, 'stale_read': stale != new,
                           'instance_b_after_invalidate': fresh, 'fresh_after_invalidate': fresh == new, 'ttl_s': 30}
     rename(original); call(f'{a}/lab/redis/reset?id=42', 'POST')
-    sh(['docker', 'stop', f'{PROJECT}-redis-1'], check=False, timeout=120)
-    try:
-        t = time.perf_counter(); r = call(f'{a}/lab/redis/product/42'); ms = (time.perf_counter() - t) * 1000
-        catalog_ok = call(f'{a}/api/products/42')['id'] == 42
-        res['redis_down'] = {'source': r['source'], 'error': r.get('error'), 'client_ms': round(ms, 1), 'catalog_api_still_ok': catalog_ok}
-    finally:
-        sh(['docker', 'start', f'{PROJECT}-redis-1'], check=False, timeout=120); time.sleep(3)
-    r = call(f'{a}/lab/redis/product/42'); res['redis_back'] = {'source': r['source']}
+    res['redis_stopped'] = outage(a, 'stop')
+    res['redis_paused'] = outage(a, 'pause')
+    res['client'] = call(f'{a}/lab/redis/loads?id=42').get('client')
     return res
 
 def probe_correctness(port):
@@ -415,7 +457,7 @@ def write_report(out, meta, results):
         for (pid, eid, lab, rate), rs in groups.items():
             L.append(f'| {pid} | {eid} | {lab} | {rate} | {len(rs)} | {mm([x["rps"] for x in rs])} | {mm([x["p50"] for x in rs], 2)} | {mm([x["p99"] for x in rs], 2)} | '
                      f'{mm([x["dropped"] for x in rs], 0)} | {mm([(x["failed_rate"] or 0) * 100 for x in rs], 2)} |')
-    for key, title in (('di2', 'DI captive / mutable state (Lab 06)'), ('events', 'Transactional events (Lab 07)'), ('pinning', 'Virtual-thread pinning (Lab 04)'), ('redis', 'Redis shared cache stampede (Lab 08)')):
+    for key, title in (('di2', 'DI captive / mutable state (Lab 06)'), ('events', 'Transactional events (Lab 07)'), ('pinning', 'Virtual-thread pinning (Lab 04)'), ('redis', 'Redis shared cache stampede (Lab 08)'), ('redis2', 'Redis consistency and outage (Lab 08)')):
         rows = [(ph, ph[key]) for ph in results if ph.get(key)]
         if rows:
             L += ['', f'## Probe: {title}', '']
