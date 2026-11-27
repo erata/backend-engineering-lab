@@ -74,6 +74,7 @@ All experiments use the `constant-arrival-rate` executor: k6 sends requests at t
 | `v5-redis-*` | each backend × 2 + Redis | Redis client comparison: Lettuce, Jedis (pool 8 / 64), StackExchange.Redis; `redis-get` 3×, `redis` and `redis2` probes |
 | `v5b-redis-jakarta-*` | Jakarta × 2 + Redis | Jedis 5× (WildFly warm-up); its DNS A/B is invalid (F15) |
 | `v6-outage-*` | each backend × 2 + Redis | `outage` probe; Lettuce default / `REJECT_COMMANDS` (`LAB_REDIS_DISCONNECTED`), StackExchange.Redis heartbeat 1,000 / 500 / 100 ms (`REDIS_HEARTBEAT_MS`) |
+| `v7-redis-regression-*` | each backend × 2 + Redis | `redis_regression` probe (no load test) |
 | `v6b-outage-jakarta-*` | Jakarta × 2 + Redis | Jedis with `networkaddress.cache.negative.ttl=0` or no JVM DNS cache (`-Djava.security.properties`) |
 
 Controls held fixed: `cpus: 4` (except the CPU phases), `mem_limit: 2g`, same 100K seed, same mock upstream, same k6 image (`grafana/k6:1.3.0`) on the same Docker network, one unrecorded warm-up per experiment (10 s; 30 s at ≥ 1,000 req/s), then the measured runs.
@@ -103,6 +104,7 @@ Harness rules learned the hard way (each one invalidated results before it exist
 | `pinning` | 04 | 3 warm-up + 10 × 100 virtual threads sleeping 50 ms in a lock | pinned ≈ 1,250 ms, not pinned ≈ 50 ms |
 | `redis` | 08 | 5 rounds × 100 requests split over 2 instances per mode | `distributed` → 1 load |
 | `redis2` | 08 | stale read before/after invalidation (v5 also: one outage run, superseded by `outage`) | stale before, fresh after invalidation |
+| `redis_regression` | 08 | stale-owner lock release, JSON with special characters (load, cache, DB fallback), Redis frozen during a single-flight load, `distributed` loads | correct release, valid JSON, 0 HTTP 500, 1 load per round |
 | `outage` | 08 | 3 kinds (`docker stop`, `docker pause`, Redis process killed in the running container) × 5 runs: 10 sequential + 50 concurrent requests, restore, poll every 50 ms until served from Redis | 0 HTTP errors; reports latency median/p95/p99/min/max, recovery, DB fallback queries, Redis connections |
 
 ## 3. How to reproduce

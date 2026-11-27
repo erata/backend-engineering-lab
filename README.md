@@ -1,10 +1,23 @@
 # Backend Engineering Lab
 
+[![CI](https://github.com/erata/backend-engineering-lab/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/erata/backend-engineering-lab/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/erata/backend-engineering-lab)](https://github.com/erata/backend-engineering-lab/releases) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **Product catalogue · Caching · Concurrency · Async I/O · Runtime and architecture experiments**
+
+**At a glance:** 3 frameworks (Spring Boot 4.2, Jakarta EE 11 on WildFly 42, ASP.NET Core 10/11) · 8 labs · 3 CI jobs · 16 validation defects found and fixed. Selected local results, indicative for the documented workloads only ([report](reports/BENCHMARK_REPORT.md)):
+
+| Question | Measured answer |
+|---|---|
+| Immutable snapshot vs global lock for cache reads | 88.1 M vs 4.61 M reads/s (19×), but 33 vs 902 K write batches/s (JMH) |
+| Three independent 100/200/300 ms calls: sequential vs concurrent | p50 605 ms vs 303 ms on all three stacks |
+| 400 req/s of blocking I/O: platform vs virtual threads (Java 25) | 324 req/s at p50 2.4 s vs 392 req/s at p50 606 ms |
+| "Current user" kept in a singleton | another request's user in 95–98 % of concurrent responses, every framework |
+| Cache stampede across two instances with Redis | 50–100 DB loads without coordination, 1 with a Redis lock |
+| Redis down, every client set to a 500 ms timeout | ~510 ms (Lettuce), 8–510 ms (Jedis), ~1,000 ms (StackExchange.Redis) per request |
 
 An independently runnable, cross-framework engineering laboratory. Three implementations of one small product-catalogue scenario explore the same engineering questions without requiring a distributed product architecture. The focus is learning, correctness, repeatability and trade-offs, not declaring a universal framework winner.
 
-> **Release status: v1.1.0 (2026-11-27), built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Fifteen defects found during validation were fixed (F15 after v1.0.0: a wrongly confirmed Redis/DNS explanation), and a clean-checkout reproduction passed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
+> **Release status: v1.1.0 (2026-11-27), built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Sixteen defects found during validation were fixed (F15 after v1.0.0: a wrongly confirmed Redis/DNS explanation; F16 after v1.1.0: Redis lock release and JSON handling), and a clean-checkout reproduction passed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
 >
 > **Results:** [Consolidated benchmark report](reports/BENCHMARK_REPORT.md) · [Benchmark guide](docs/BENCHMARKS.md) · [Release notes](RELEASE_NOTES.md)
 
@@ -73,10 +86,10 @@ Each lab README contains the use case, invariants, the implementation per framew
 
 | Lab | Use case | Headline result | Start here |
 |---|---|---|---|
-| 01 | 100K-product cache refreshed while being read | snapshot reads 19× faster than a global lock (JMH) but copies the map per batch (33 batches/s); staleness ≤ 10 s refresh | [Product cache](labs/01-product-cache/README.md), [Evaluation](labs/01-product-cache/EVALUATION.md), [Synchronization](docs/SYNCHRONIZATION.md) |
+| 01 | 100K-product cache refreshed while being read | snapshot reads 19× faster than a global lock (JMH) but copies the map per batch (33 batches/s); with a 10 s refresh interval, observed staleness was 3.2–8.3 s (a measurement, not a guarantee) | [Product cache](labs/01-product-cache/README.md), [Evaluation](labs/01-product-cache/EVALUATION.md), [Synchronization](docs/SYNCHRONIZATION.md) |
 | 02 | Flash-sale stock reservation | unsafe oversold in 11–29 of 30 runs; lock/CAS 0 failures; CAS 6× faster than lock in .NET only | [Concurrency](labs/02-concurrency/README.md) |
 | 03 | Aggregating three slow services | concurrent 303 ms vs 605 ms sequential (5 runs, all stacks); .NET sync-over-async starves on a cold start | [Async I/O](labs/03-async-io/README.md) |
-| 04 | Blocking I/O under load, Java 17/25/21, platform/virtual, WildFly, .NET 10/11 | virtual threads 392 req/s at 606 ms vs platform 324 req/s at 2.4 s; Java 17 = 25; JDK 21 pinning; WildFly virtual executor needs `maxAsync` | [Thread models](labs/04-virtual-threads/README.md) |
+| 04 | Blocking I/O under load, Java 17/25/21, platform/virtual, WildFly, .NET 10/11 | virtual threads 392 req/s at 606 ms vs platform 324 req/s at 2.4 s; Java 17 and 25 alike in this thread-bound workload; JDK 21 pinning; WildFly virtual executor needs `maxAsync` | [Thread models](labs/04-virtual-threads/README.md) |
 | 05 | CPU-bound recalculation on 1–8 CPUs | ~4–5× speed-up with 8 workers; speed-up capped by the CPU quota | [Multicore](labs/05-cpu-parallelism/README.md) |
 | 06 | DI lifetimes, captive dependencies, ownership, shared state | singleton "current user" wrong in 95–98 % of concurrent responses; per-request payload 3–15× CPU | [Dependency injection](labs/06-dependency-injection/README.md) |
 | 07 | Price change + audit: direct, after-commit event, outbox | hot-row collapse in `direct`; Hikari deadlock in `event-inline`; after-commit audit lost on failure, outbox recovers it | [Domain events](labs/07-domain-events/README.md) |

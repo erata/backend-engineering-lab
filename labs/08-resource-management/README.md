@@ -278,6 +278,19 @@ sequenceDiagram
 
 The first outage run (v5, one repetition) reported Jedis failing in 4 ms with a 9.5 s recovery and called the JVM negative DNS cache a *confirmed* cause, based on a v5b run with `-Dsun.net.inetaddr.negative.ttl=0`. Both were wrong in a way repetition exposed: (1) the 4 ms / 9.5 s pattern is the **occasional** path (1 of 5 repetitions); the usual path is ~510 ms per request and ~115 ms recovery; (2) that system property has **no effect** here, because the JDK's `java.security` sets `networkaddress.cache.negative.ttl=10` itself and the security property wins (checked with `java -XshowSettings:security:properties`). The v6b runs set the security property through `-Djava.security.properties`, which works.
 
+### 7.6 Regression checks after the v1.1.0 review (phase `v7-redis-regression-*`, v1.1.1)
+
+An external review found three defects in the Redis code: the lock was released with GET + DEL (not atomic), the Spring DB-fallback path wrote product names into JSON without escaping (the load path escaped only quotes and backslashes), and Spring's `local` single-flight followers received the leader's Redis exception wrapped in a `CompletionException`, which the fail-open handler does not catch. Fixed in all affected editions (atomic Lua compare-and-delete, the framework's JSON serializer, unwrapping as Jakarta already did) and checked with the `redis_regression` probe:
+
+| Check | Spring | Jakarta | .NET |
+|---|---|---|---|
+| Stale owner (expired lease) cannot delete the next owner's lock | ✓ | ✓ | ✓ |
+| Name `Laptop "Pro" \ 15″` + tab + newline + `üß€`: valid JSON via load, second instance, DB fallback | ✓ ✓ ✓ | ✓ ✓ ✓ | ✓ ✓ ✓ |
+| 50 concurrent `local` misses, Redis frozen during the leader's load: HTTP 500 responses | 0 | 0 | 0 |
+| `distributed`, 100 requests over two instances, 3 rounds: DB loads | 1, 1, 1 | 1, 1, 1 | 1, 1, 1 |
+
+Limit of the outage check: the freeze hit the leader's 100 ms load window in 1 of 3 rounds for Spring (all 50 requests fell back after ~700 ms), 2 of 3 for .NET and 0 of 3 for Jakarta (which already unwrapped the exception); in the other rounds Redis answered before the freeze. The follower path is therefore exercised, not deterministically proven. Benchmark results are unaffected: the hit path is unchanged, and the lock release now needs one Redis round trip instead of two. Source: [231118Z](../../reports/http-runs/20261127T231118Z/REPORT.md).
+
 ## 8. Interpretation and trade-offs
 
 **Observations → explanations**
@@ -304,12 +317,12 @@ The first outage run (v5, one repetition) reported Jedis failing in 4 ms with a 
 
 ## 9. Limitations
 
-- The Redis lock is a lab simplification (GET+DEL release, fixed 3 s lease, no fencing token). It is not a correct distributed lock under GC pauses or network partitions.
+- The Redis lock is a lab simplification: release is an atomic compare-and-delete script (since v1.1.1; before, GET + DEL could delete a lock that had expired and been taken by another instance), but the lease is fixed at 3 s and there is no fencing token. It is not a correct distributed lock under GC pauses or network partitions.
 - Two instances share one MySQL journal; the catalogue normally assumes a single refresh consumer.
 - No Redis cluster, replication or eviction-policy experiments.
 - One client per edition, default settings except the 500 ms timeouts (and the Jedis pool size); Redisson, Lettuce on Jakarta or other StackExchange.Redis heartbeat settings were not tried. For hit latency the client is therefore confounded with the framework (compare the in-process baselines).
 - Outage probes: 5 repetitions per setting, on one machine, with Docker-specific failure modes (container stop, pause, process kill). A real network partition or a Redis failover in a managed service may behave differently; recovery times include the 50 ms polling interval.
-- Distributed-lock results (1 load per round) hold for the tested case only: lock holder healthy, lease (3 s) longer than the load (100 ms). Lease expiry during a slow load, a crashed holder or a network partition were not tested; the GET + DEL release without a fencing token is not safe in those cases.
+- Distributed-lock results (1 load per round) hold for the tested case only: lock holder healthy, lease (3 s) longer than the load (100 ms). The `redis_regression` probe checks one expiry case (a stale owner cannot delete the next owner's lock); a slow load that outlives its lease, a crashed holder or a network partition were not tested, and without a fencing token the lock is not safe in those cases.
 - The WildFly pool timeout was left at its default because `@DataSourceDefinition` has no standard attribute for it.
 
 ## 10. Use cases and interview questions

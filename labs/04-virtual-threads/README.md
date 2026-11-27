@@ -111,7 +111,7 @@ Theory: pinned = ⌈100 / 4⌉ × 50 ms = 1,250 ms; not pinned = 50 ms.
 **Observations**
 1. Spring with platform threads stops at **324 req/s**, very close to 200 threads / 0.6 s = 333, with p50 2.4 s and ~950 dropped iterations per run. No request failed; they were all late.
 2. Virtual threads served the full load (**392 req/s** = all 12,000 requests; k6 divides by the 30 s window plus the ~0.6 s graceful stop) at the upstream latency (p50 606 ms) with 0 errors, in 5 of 5 runs. CPU was not the limit in either configuration.
-3. Java 17 and Java 25 with platform threads are indistinguishable (324.2 vs 324.2 req/s; p50 2,434 vs 2,431 ms).
+3. Java 17 and Java 25 with platform threads are indistinguishable **in this workload** (324.2 vs 324.2 req/s; p50 2,434 vs 2,431 ms): the thread pool, not the JVM, is the bottleneck. This is not a general Java 17 vs 25 performance comparison.
 4. WildFly worker threads collapse far below their theoretical 107 req/s (≈ 40 successful req/s) because the server keeps processing requests whose client already timed out. With a container-managed **virtual** executor the same blocking code served 392 req/s, but only after `maxAsync` was set explicitly ([F9](../../reports/investigations/2026-11-27-anomalies.md#3-wildfly-managed-virtual-thread-executor-100--timeouts-at-400-reqs-lab-04)).
 5. .NET sync-over-async starved on every cold start and recovered on a warmed-up pool. .NET 10 and .NET 11 behaved the same.
 6. Pinning: JDK 21 serialized 100 virtual threads on 4 carriers inside `synchronized` (1,254 ms, theory 1,250 ms); JDK 25 did not (51 ms).

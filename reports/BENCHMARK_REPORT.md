@@ -10,7 +10,7 @@ These are **indicative measurements of these lab implementations on one workstat
 
 | # | Finding | Lab | Evidence (repetitions) |
 |---|---|---|---|
-| 1 | **Virtual threads remove the blocking-I/O thread ceiling.** 400 req/s of 600 ms blocking calls: platform threads 324 req/s at p50 2.4 s, virtual threads 392 req/s (all requests) at p50 606 ms, 0 errors. Java 17 = Java 25 with platform threads | 04 | §3.4 (5 runs each) |
+| 1 | **Virtual threads remove the blocking-I/O thread ceiling.** 400 req/s of 600 ms blocking calls: platform threads 324 req/s at p50 2.4 s, virtual threads 392 req/s (all requests) at p50 606 ms, 0 errors. With platform threads, Java 17 and Java 25 gave the same result in this thread-bound workload (not a general JVM performance comparison) | 04 | §3.4 (5 runs each) |
 | 2 | **WildFly's Concurrency 3.1 virtual executor works, but only with `maxAsync` set:** without it, a semaphore in the implementation capped concurrency (100 % timeouts); with it, 392 req/s at p50 606 ms | 04 | §3.4 (3 runs), investigation 3 |
 | 3 | **JDK 21 pins virtual threads in `synchronized`** (1,254 ms vs theory 1,250 ms); JDK 25 does not (51 ms) | 04 | §3.4 (10 runs) |
 | 4 | **.NET sync-over-async starves the ThreadPool on a cold start** (up to 100 % failures at 0.9–3 % CPU) and survives once the pool has grown; async code never failed | 03, 04 | §3.3–3.4, investigation 4 |

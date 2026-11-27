@@ -62,6 +62,7 @@ Field names match across editions wherever the experiment exists in more than on
 | `GET /lab/resources/pool?requests&permits` | all | semaphore model of a scarce resource |
 | `GET /lab/resources/db?pool=5\|20&ms=30` | all | **real** JDBC/ADO.NET pool; holds a connection for `SELECT SLEEP(ms)`; 503 when no connection is free in time |
 | `GET /lab/redis/product/{id}?mode=none\|local\|distributed` | all + Redis overlay | Redis cache-aside, MySQL + 100 ms on a miss; falls back to MySQL when Redis fails (`source: db-fallback`, `error` = client exception type) |
+| `POST /lab/redis/lock-check?id` | all + Redis overlay | lock regression check: stale owner A must not delete owner B's lock; returns `correct` |
 | `POST /lab/redis/invalidate?id`, `POST /lab/redis/reset?id`, `GET /lab/redis/loads?id` | all + Redis overlay | invalidation, reset, cross-instance load counter; `loads` also returns `fallbacks` (per instance, since startup) and `client` (Lettuce, Jedis + `poolMax`, StackExchange.Redis) |
 
 The common catalogue contract is [OpenAPI](../shared/contracts/openapi.yaml). `tools/compare_http.py` exercises the shared lab routes on every edition.

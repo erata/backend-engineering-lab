@@ -1,5 +1,22 @@
 # Release notes
 
+## v1.1.1 — 2026-11-28
+
+Patch release after an external code review. No new labs or technologies; benchmark results unchanged.
+
+### Fixed (F16)
+- **Redis lock release is atomic** in all three editions (Lua compare-and-delete instead of GET + DEL): an instance can no longer delete a lock that expired and was taken by another instance. Lease and fencing limitations remain documented.
+- **JSON in the Redis lab** is produced by the framework serializer (Jackson, JSON-B; .NET already used System.Text.Json). Before, the Spring DB-fallback path did not escape product names at all, and other paths escaped only quotes and backslashes.
+- **Spring single-flight under a Redis failure:** followers now receive the leader's exception unwrapped and fall back to MySQL like the leader, instead of failing with a wrapped `CompletionException`.
+
+### Added
+- `redis_regression` probe and `POST /lab/redis/lock-check` (all editions); results in [Lab 08 §7.6](labs/08-resource-management/README.md#76-regression-checks-after-the-v110-review-phase-v7-redis-regression--v111).
+- README: CI, release and license badges and a short "at a glance" summary of selected results.
+
+### Changed
+- Over-general statements rephrased as workload-specific observations: "Java 17 = 25" (identical only in the thread-bound Lab 04 workload) and "staleness ≤ 10 s" (observed 3.2–8.3 s with a 10 s refresh interval; not a guarantee).
+- The two Redis classes changed here use standard Java formatting (one import, field and statement per line).
+
 ## v1.1.0 — 2026-11-27
 
 Same scope as v1.0.0 (eight labs, three editions). This release completes the Redis part of Lab 08 on every edition, corrects one wrongly confirmed explanation, fixes the dependency advisories and adds Dependabot. No other features.
