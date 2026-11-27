@@ -53,6 +53,7 @@ app.MapGet("/lab/resources/db",async(int? pool,int? ms)=>{int p=pool??5,d=ms??30
 app.MapGet("/lab/redis/product/{id:long}",(long id,string? mode,RedisLab redis)=>redis.Product(id,mode??"distributed"));
 app.MapPost("/lab/redis/invalidate",async(long? id,RedisLab redis)=>Results.Ok(new{invalidated=await redis.Db.KeyDeleteAsync($"lab:product:{id??42}")}));
 app.MapPost("/lab/redis/reset",async(long? id,RedisLab redis)=>{long i=id??42;await redis.Db.KeyDeleteAsync(new RedisKey[]{$"lab:product:{i}",$"lab:loads:{i}",$"lab:lock:{i}"});return Results.Ok(new{reset=i});});
+app.MapPost("/lab/redis/lock-check",async(long? id,RedisLab redis)=>Results.Ok(await redis.LockCheck(id??42)));
 app.MapGet("/lab/redis/loads",async(long? id,RedisLab redis)=>{long i=id??42;var v=await redis.Db.StringGetAsync($"lab:loads:{i}");return Results.Ok(new{id=i,loads=v.IsNull?0:(long)v,fallbacks=Interlocked.Read(ref RedisLab.Fallbacks),client="StackExchange.Redis",heartbeatMs=RedisLab.HeartbeatMs});});
 }app.Run();
 static bool Valid(NameRequest? req)=>req?.Name is {Length: >0 and <=255} n&&!string.IsNullOrWhiteSpace(n);
@@ -77,9 +78,21 @@ public static class Pools{
 // distributed (SET NX PX lock). One multiplexed connection is shared by all requests (the client's design); it is
 // created lazily, so editions without Redis never connect. Timeouts are 500 ms like the other ports (client default
 // is 5 s); AbortOnConnectFail=false keeps reconnecting in the background instead of failing at startup.
-// Lab simplification as in Spring: the lock is released with GET + DEL and has no fencing token.
+// The lock is released with an atomic compare-and-delete script; remaining simplification: fixed lease, no fencing token.
 public sealed class RedisLab{
  public static long Fallbacks;
+ // Delete the lock only if it still holds this caller's token (atomic in Redis).
+ public const string ReleaseLock="if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end";
+ // Lock regression check, same as Spring and Jakarta: a stale owner must not delete the lock of the next owner.
+ public async Task<object> LockCheck(long id){
+  RedisKey lockKey=$"lab:lockcheck:{id}";await Db.KeyDeleteAsync(lockKey);
+  await Db.StringSetAsync(lockKey,"A",TimeSpan.FromMilliseconds(200),When.NotExists);await Task.Delay(300);
+  bool bAcquired=await Db.StringSetAsync(lockKey,"B",Lease,When.NotExists);
+  long releasedByA=(long)await Db.ScriptEvaluateAsync(ReleaseLock,new[]{lockKey},new RedisValue[]{"A"});
+  string? holder=await Db.StringGetAsync(lockKey);
+  long releasedByB=(long)await Db.ScriptEvaluateAsync(ReleaseLock,new[]{lockKey},new RedisValue[]{"B"});
+  return new{bAcquiredAfterExpiry=bAcquired,staleOwnerDeleted=releasedByA,holderAfterStaleRelease=holder??"null",ownerDeleted=releasedByB,correct=bAcquired&&releasedByA==0&&holder=="B"&&releasedByB==1};
+ }
  static readonly string Cs=Environment.GetEnvironmentVariable("DB_CONNECTION")??"Server=localhost;Database=backendlab;User ID=lab;Password=local-lab-password";
  static readonly TimeSpan Ttl=TimeSpan.FromSeconds(30),Lease=TimeSpan.FromSeconds(3);
  // REDIS_HEARTBEAT_MS (Lab 08 experiment): the client evaluates command timeouts on its heartbeat (default 1000 ms).
@@ -122,7 +135,7 @@ public sealed class RedisLab{
    string token=$"{instance}-{Guid.NewGuid()}";
    if(await Db.StringSetAsync(lockKey,token,Lease,When.NotExists)){
     try{string? v=await Db.StringGetAsync(key);return v??await Load(id,key);}
-    finally{if(await Db.StringGetAsync(lockKey)==token)await Db.KeyDeleteAsync(lockKey);}
+    finally{await Db.ScriptEvaluateAsync(ReleaseLock,new RedisKey[]{lockKey},new RedisValue[]{token});}
    }
    await Task.Delay(10);string? w=await Db.StringGetAsync(key);if(w is not null)return w;
   }
