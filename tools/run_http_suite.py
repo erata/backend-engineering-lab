@@ -65,6 +65,16 @@ V2_PHASES = [
     phase('v2-pinning-j21', 'spring', {**J25P, 'JAVA_VERSION': '21'}, [], ['pinning'], title='Spring / Java 21: virtual-thread pinning'),
     phase('v2-pinning-j25', 'spring', J25P, [], ['pinning'], title='Spring / Java 25: virtual-thread pinning'),
     phase('v2-redis-spring', 'spring', J25P, CATALOG[:1] + REDIS_GET, ['redis'], extra_ports=[18083], title='Spring x2 + Redis: shared cache'),
+    # v4: every experiment that calls the mock upstream, rerun after the mock became a thread-free asyncio server
+    # (the threaded mock was the bottleneck for high-concurrency clients; see docs/VALIDATION_STATUS.md, F8).
+    phase('v4-rep5-spring-j25-platform', 'spring', J25P, IO + SATURATION, repeat=5, title='Spring / Java 25 / platform, I/O, 5 repetitions'),
+    phase('v4-rep5-spring-j25-virtual', 'spring', {**J25P, 'LAB_VIRTUAL_THREADS': 'true'}, IO[:1] + SATURATION, repeat=5, title='Spring / Java 25 / virtual, I/O, 5 repetitions'),
+    phase('v4-rep5-spring-j17-platform', 'spring', {**J25P, 'JAVA_VERSION': '17'}, SATURATION, repeat=5, title='Spring / Java 17 / platform, I/O, 5 repetitions'),
+    phase('v4-rep5-jakarta', 'jakarta', {}, IO, repeat=5, title='Jakarta EE, I/O, 5 repetitions'),
+    phase('v4-rep3-jakarta-saturation', 'jakarta', {}, SATURATION + JAKARTA_VT, repeat=3, title='Jakarta EE, 400 req/s blocking: worker vs managed executors, 3 repetitions'),
+    phase('v4-rep5-dotnet10', 'dotnet', {'DOTNET_VERSION': '10.0'}, IO, repeat=5, title='.NET 10, I/O, 5 repetitions'),
+    phase('v4-rep3-dotnet-saturation', 'dotnet', {'DOTNET_VERSION': '10.0'}, SATURATION, repeat=3, title='.NET 10, 400 req/s sync-over-async, 3 repetitions'),
+    phase('v4-dotnet11-saturation', 'dotnet', {'DOTNET_VERSION': '11.0'}, IO[1:] + SATURATION, repeat=3, title='.NET 11, I/O, 3 repetitions'),
     # v3: functional probes added in the final review (no load tests).
     phase('v3-spring', 'spring', J25P, [], ['ownership', 'failure', 'staleness', 'di2'], title='Spring: ownership, handler failure, cache staleness'),
     phase('v3-jakarta', 'jakarta', {}, [], ['ownership', 'failure', 'staleness'], title='Jakarta: ownership, request context in workers, handler failure, staleness'),
