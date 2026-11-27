@@ -1,0 +1,32 @@
+{
+  "utc": "2026-11-27T17:24:12.291564+00:00",
+  "os": "Windows-11-10.0.26300-SP0",
+  "processor": "v5 Redis client comparison",
+  "logical_cpu_count": 20,
+  "docker": "29.5.3",
+  "k6_image": "grafana/k6:1.3.0",
+  "phases": [
+    "v5-redis-spring",
+    "v5-redis-jakarta",
+    "v5-redis-jakarta-pool64",
+    "v5-redis-dotnet10"
+  ],
+  "status": "completed",
+  "git_commit": "54c0ec60c19ee0885507aa8f8f36745193524e9e",
+  "git_dirty_files": 7,
+  "workload": {
+    "products": 100000,
+    "warmup": "10 s (30 s for >= 1000 req/s), one per experiment",
+    "measure": "per experiment, usually 30 s",
+    "executor": "k6 constant-arrival-rate",
+    "backend_limits": "cpus per phase (default 4), mem_limit 2g",
+    "upstream_mock": "100/200/300 ms",
+    "repetitions": {
+      "v5-redis-spring": 3,
+      "v5-redis-jakarta": 3,
+      "v5-redis-jakarta-pool64": 3,
+      "v5-redis-dotnet10": 3
+    }
+  },
+  "finished_utc": "2026-11-27T17:39:28.848785+00:00"
+}

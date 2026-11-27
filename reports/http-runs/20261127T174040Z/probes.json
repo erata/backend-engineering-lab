@@ -1,0 +1,425 @@
+[
+ {
+  "id": "v5b-redis-jakarta-rep5",
+  "title": "Jakarta x2 + Redis (Jedis, pool 8), 5 repetitions",
+  "cpus": 4,
+  "env": {},
+  "info": {
+   "virtual": false,
+   "thread": "default task-3",
+   "runtime": "25.0.4.1",
+   "image": "backend-engineering-lab-full-jakarta sha256:088cd90f4372cb93f18912f1a36cdf630b488aa01864d1934584cd02c5e2e76f",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 104.2641025,
+     "p95": 746.5862015499997,
+     "p99": 896.9516394800002,
+     "max": 1285.710213,
+     "avg": 253.37952547849173,
+     "rps": 1806.0362442272904,
+     "requests": 54264,
+     "failed_rate": 0,
+     "dropped": 5737,
+     "vus_max": 1000,
+     "container": {
+      "cpu": "406.06%",
+      "mem": "519.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 275.82992049999996,
+     "p95": 729.73839575,
+     "p99": 867.8091768499996,
+     "max": 1337.208056,
+     "avg": 303.7364120672964,
+     "rps": 1813.6237118206075,
+     "requests": 54416,
+     "failed_rate": 0,
+     "dropped": 5584,
+     "vus_max": 1000,
+     "container": {
+      "cpu": "395.15%",
+      "mem": "590.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.962396,
+     "p95": 98.6625935999999,
+     "p99": 184.68316019999983,
+     "max": 541.901142,
+     "avg": 19.220556437710318,
+     "rps": 1989.5995676266846,
+     "requests": 59713,
+     "failed_rate": 0,
+     "dropped": 289,
+     "vus_max": 344,
+     "container": {
+      "cpu": "362.91%",
+      "mem": "588.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 4.0420995,
+     "p95": 238.1306532999999,
+     "p99": 366.5525533500005,
+     "max": 800.065478,
+     "avg": 51.258773061368224,
+     "rps": 1944.2216447241856,
+     "requests": 58972,
+     "failed_rate": 0,
+     "dropped": 1028,
+     "vus_max": 634,
+     "container": {
+      "cpu": "266.55%",
+      "mem": "589.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 38.886429,
+     "p95": 234.1807187999999,
+     "p99": 324.82491244,
+     "max": 848.164114,
+     "avg": 66.59156715802287,
+     "rps": 1965.624001815211,
+     "requests": 59169,
+     "failed_rate": 0,
+     "dropped": 831,
+     "vus_max": 577,
+     "container": {
+      "cpu": "411.62%",
+      "mem": "589.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ]
+ },
+ {
+  "id": "v5b-redis-jakarta-pool64-rep5",
+  "title": "Jakarta x2 + Redis (Jedis, pool 64), 5 repetitions",
+  "cpus": 4,
+  "env": {
+   "REDIS_POOL_MAX": "64"
+  },
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.4.1",
+   "thread": "default task-3",
+   "image": "backend-engineering-lab-full-jakarta sha256:088cd90f4372cb93f18912f1a36cdf630b488aa01864d1934584cd02c5e2e76f",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 461.838779,
+     "p95": 682.0530448,
+     "p99": 778.1946731200001,
+     "max": 1103.087934,
+     "avg": 416.8786073139375,
+     "rps": 1760.02092019813,
+     "requests": 53033,
+     "failed_rate": 0,
+     "dropped": 6969,
+     "vus_max": 1000,
+     "container": {
+      "cpu": "429.03%",
+      "mem": "512.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 211.801702,
+     "p95": 532.9045156,
+     "p99": 637.6753755199999,
+     "max": 1096.147909,
+     "avg": 224.96922349098003,
+     "rps": 1925.890366272818,
+     "requests": 57809,
+     "failed_rate": 0,
+     "dropped": 2190,
+     "vus_max": 1000,
+     "container": {
+      "cpu": "409.81%",
+      "mem": "528.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 2.5599145,
+     "p95": 108.24060219999997,
+     "p99": 195.55144900000002,
+     "max": 502.012694,
+     "avg": 23.119170753663386,
+     "rps": 1974.3510658239477,
+     "requests": 59508,
+     "failed_rate": 0,
+     "dropped": 492,
+     "vus_max": 379,
+     "container": {
+      "cpu": "402.86%",
+      "mem": "526.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 7.460785,
+     "p95": 195.24907859999996,
+     "p99": 301.0886925800009,
+     "max": 573.95434,
+     "avg": 45.539962986731666,
+     "rps": 1972.648354085896,
+     "requests": 59239,
+     "failed_rate": 0,
+     "dropped": 761,
+     "vus_max": 553,
+     "container": {
+      "cpu": "305.63%",
+      "mem": "542.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.9284165,
+     "p95": 185.29513605,
+     "p99": 308.89054201,
+     "max": 577.201293,
+     "avg": 33.92884835467677,
+     "rps": 1971.2403046743361,
+     "requests": 59144,
+     "failed_rate": 0,
+     "dropped": 857,
+     "vus_max": 564,
+     "container": {
+      "cpu": "220.61%",
+      "mem": "541.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ]
+ },
+ {
+  "id": "v5b-redis-jakarta-dns0",
+  "title": "Jakarta x2 + Redis (Jedis), JVM negative DNS cache off",
+  "cpus": 4,
+  "env": {
+   "LAB_JAVA_TOOL_OPTIONS": "-Dsun.net.inetaddr.negative.ttl=0"
+  },
+  "info": {
+   "thread": "default task-3",
+   "runtime": "25.0.4.1",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-jakarta sha256:088cd90f4372cb93f18912f1a36cdf630b488aa01864d1934584cd02c5e2e76f",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "redis2": {
+   "consistency": {
+    "db_value": "Product 42 v1795801798",
+    "instance_b_before_invalidate": "Product 42",
+    "stale_read": true,
+    "instance_b_after_invalidate": "Product 42 v1795801798",
+    "fresh_after_invalidate": true,
+    "ttl_s": 30
+   },
+   "redis_stopped": {
+    "sequential_10": {
+     "first_ms": 511.8,
+     "median_ms": 512.6,
+     "max_ms": 541.7,
+     "sources": [
+      "db-fallback"
+     ],
+     "errors": [
+      "JedisConnectionException"
+     ]
+    },
+    "concurrent_50": {
+     "p50_ms": 575.9,
+     "max_ms": 1029.4,
+     "sources": [
+      "db-fallback"
+     ],
+     "errors": [
+      "JedisConnectionException",
+      "JedisException"
+     ]
+    },
+    "catalog_api_still_ok": true,
+    "recovery_ms_after_restore": 10,
+    "recovery_polls": 1
+   },
+   "redis_paused": {
+    "sequential_10": {
+     "first_ms": 1031.9,
+     "median_ms": 511.4,
+     "max_ms": 1031.9,
+     "sources": [
+      "db-fallback"
+     ],
+     "errors": [
+      "JedisConnectionException"
+     ]
+    },
+    "concurrent_50": {
+     "p50_ms": 532.1,
+     "max_ms": 1021.4,
+     "sources": [
+      "db-fallback"
+     ],
+     "errors": [
+      "JedisConnectionException",
+      "JedisException"
+     ]
+    },
+    "catalog_api_still_ok": true,
+    "recovery_ms_after_restore": 10,
+    "recovery_polls": 1
+   },
+   "client": "Jedis"
+  }
+ }
+]
