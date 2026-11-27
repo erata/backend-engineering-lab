@@ -11,6 +11,11 @@ jobs:
           java-version: '25'
           cache: maven
       - run: mvn -B -f implementations/spring-boot/pom.xml verify
+      - name: Dependency-free checks and report-tool tests
+        run: |
+          python3 tools/check_offline.py
+          python3 tools/check_extended.py
+          cd tools && python3 -m unittest test_report_generator -v
       - name: JMH smoke only (not a publishable benchmark)
         run: >-
           java -jar implementations/spring-boot/benchmarks-jmh/target/benchmarks.jar

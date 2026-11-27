@@ -11,7 +11,7 @@ For every *phase* (one backend configuration) the script:
 Raw k6 summaries, probe output, environment and a Markdown report are written to reports/http-runs/<UTC>/.
 k6 runs in a container on the Compose network, so no local k6 installation is needed.
 """
-import argparse, datetime, json, os, platform, statistics, subprocess, sys, threading, time, urllib.request, urllib.error
+import argparse, concurrent.futures, datetime, json, os, platform, statistics, subprocess, sys, threading, time, urllib.request, urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,8 +39,38 @@ RESERVE = [k6(f'reserve-{m}', '02', f'/lab/concurrency/reserve?mode={m}&stock=10
 # Saturation runs last: an overloaded server keeps draining its queue after k6 stops and would contaminate later rows.
 FULL = CATALOG + IO + DI + EVENTS + RESERVE + SATURATION
 
-def phase(id, backend, env=None, experiments=(), probes=(), cpus=4, title=''):
-    return dict(id=id, backend=backend, env=env or {}, experiments=list(experiments), probes=list(probes), cpus=cpus, title=title or id)
+DBPOOL = [k6(f'dbpool-{p}-{r}rps', '08', f'/lab/resources/db?pool={p}&ms=30', r, vus=100, max_vus=1500,
+             note=f'real pool of {p}, 30 ms per connection: capacity ~{p * 1000 // 30} req/s') for p in (5, 20) for r in (100, 300)]
+EVENTS_INLINE = [k6('events-event-inline', '07', '/lab/events/price-change?mode=event-inline&id=7&cents=999', 200, method='POST', duration='20s',
+                    note='Spring: pool deadlock; Jakarta: compare JTA behaviour')]
+JAKARTA_VT = [k6(f'io-blocking-async-{x}-400rps', '04', f'/lab/io/blocking-async?executor={x}', 400, vus=400, max_vus=3000,
+                 note='blocking chain on a managed executor, JAX-RS async response') for x in ('virtual', 'default')]
+REDIS_GET = [k6('redis-get', '08', '/lab/redis/product/42?mode=distributed', 2000, vus=200, note='cache hit served from Redis (network hop)')]
+
+def phase(id, backend, env=None, experiments=(), probes=(), cpus=4, title='', repeat=1, extra_ports=()):
+    return dict(id=id, backend=backend, env=env or {}, experiments=list(experiments), probes=list(probes), cpus=cpus, title=title or id,
+                repeat=repeat, extra_ports=list(extra_ports))
+
+J25P = {'JAVA_VERSION': '25', 'LAB_VIRTUAL_THREADS': 'false', 'LAB_CACHE_STRATEGY': 'snapshot'}
+# v2: repeatability (5 runs per configuration) and the experiments added after the first report.
+V2_PHASES = [
+    phase('v2-rep5-spring-j25-platform', 'spring', J25P, CATALOG[:1] + IO[::2] + EVENTS + SATURATION, repeat=5, title='Spring / Java 25 / platform, 5 repetitions'),
+    phase('v2-rep5-spring-j25-virtual', 'spring', {**J25P, 'LAB_VIRTUAL_THREADS': 'true'}, CATALOG[:1] + SATURATION, repeat=5, title='Spring / Java 25 / virtual, 5 repetitions'),
+    phase('v2-rep5-spring-j17-platform', 'spring', {**J25P, 'JAVA_VERSION': '17'}, CATALOG[:1] + SATURATION, repeat=5, title='Spring / Java 17 / platform, 5 repetitions'),
+    phase('v2-rep5-jakarta', 'jakarta', {'LAB_CACHE_STRATEGY': 'snapshot'}, CATALOG[:1] + IO[2:], repeat=5, title='Jakarta EE, 5 repetitions'),
+    phase('v2-rep5-dotnet10', 'dotnet', {'DOTNET_VERSION': '10.0', 'LAB_CACHE_STRATEGY': 'snapshot'}, CATALOG[:1] + IO[1:], repeat=5, title='.NET 10, 5 repetitions'),
+    phase('v2-new-spring', 'spring', J25P, DBPOOL, ['di2', 'events'], title='Spring: real DB pool, DI captive/mutable, transactional events'),
+    phase('v2-new-jakarta', 'jakarta', {}, DBPOOL + EVENTS + EVENTS_INLINE + JAKARTA_VT, ['di2', 'events'], title='Jakarta: real DB pool, JTA events, managed virtual threads, DI'),
+    phase('v2-new-dotnet10', 'dotnet', {'DOTNET_VERSION': '10.0'}, DBPOOL + EVENTS, ['di2', 'events'], title='.NET 10: real DB pool, outbox events, DI'),
+    phase('v2-pinning-j21', 'spring', {**J25P, 'JAVA_VERSION': '21'}, [], ['pinning'], title='Spring / Java 21: virtual-thread pinning'),
+    phase('v2-pinning-j25', 'spring', J25P, [], ['pinning'], title='Spring / Java 25: virtual-thread pinning'),
+    phase('v2-redis-spring', 'spring', J25P, CATALOG[:1] + REDIS_GET, ['redis'], extra_ports=[18083], title='Spring x2 + Redis: shared cache'),
+    # v3: functional probes added in the final review (no load tests).
+    phase('v3-spring', 'spring', J25P, [], ['ownership', 'failure', 'staleness', 'di2'], title='Spring: ownership, handler failure, cache staleness'),
+    phase('v3-jakarta', 'jakarta', {}, [], ['ownership', 'failure', 'staleness'], title='Jakarta: ownership, request context in workers, handler failure, staleness'),
+    phase('v3-dotnet10', 'dotnet', {'DOTNET_VERSION': '10.0'}, [], ['ownership', 'failure', 'staleness'], title='.NET 10: ownership, outbox retry, staleness'),
+    phase('v3-redis-spring', 'spring', J25P, [], ['redis2'], extra_ports=[18083], title='Spring x2 + Redis: consistency, invalidation, failure'),
+]
 
 PHASES = [
     phase('spring-j25-platform-snapshot', 'spring', {'JAVA_VERSION': '25', 'LAB_VIRTUAL_THREADS': 'false', 'LAB_CACHE_STRATEGY': 'snapshot'}, FULL, ['correctness', 'cpu'],
@@ -61,6 +91,7 @@ PHASES = [
     *[phase(f'cpu{c}-{b}', b, env, [], ['cpu'], cpus=c, title=f'{b} CPU quota {c}')
       for c in (1, 2, 8)
       for b, env in (('spring', {'JAVA_VERSION': '25', 'LAB_VIRTUAL_THREADS': 'false'}), ('jakarta', {}), ('dotnet', {'DOTNET_VERSION': '10.0'}))],
+    *V2_PHASES,
 ]
 
 # ---- helpers ---------------------------------------------------------------------------------------
@@ -72,14 +103,16 @@ def sh(args, env=None, check=True, timeout=1800):
 
 def compose_env(ph):
     env = dict(os.environ)
-    env.update({'SPRING_PROFILES_ACTIVE': 'lab', 'LAB_CPUS': str(ph['cpus']), 'LAB_MEMORY': '2g', 'LAB_CACHE_STRATEGY': 'snapshot'})
+    env.update({'SPRING_PROFILES_ACTIVE': 'lab', 'LAB_CPUS': str(ph['cpus']), 'LAB_MEMORY': '2g', 'LAB_CACHE_STRATEGY': 'snapshot',
+                'LAB_PORT2': '18083', 'REDIS_PORT': '16379'})
     for b in BACKENDS.values():
         env[b['port_env']] = str(b['port'])
     env.update(ph['env'])
     return env
 
 def compose(env, *args, profiles=('jakarta', 'dotnet'), timeout=1800):
-    base = ['docker', 'compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.cpu.yml']
+    # The Redis overlay is always included so that app2/redis can be stopped; they only start when named explicitly.
+    base = ['docker', 'compose', '-f', 'docker-compose.yml', '-f', 'docker-compose.cpu.yml', '-f', 'docker-compose.redis.yml']
     for p in profiles:
         base += ['--profile', p]
     return sh(base + list(args), env=env, timeout=timeout)
@@ -101,11 +134,17 @@ def wait_ready(port, limit=300):
 
 def start(ph):
     env = compose_env(ph); b = BACKENDS[ph['backend']]
-    others = [x['service'] for k, x in BACKENDS.items() if k != ph['backend']]
+    redis = bool(ph['extra_ports'])
+    others = [x['service'] for k, x in BACKENDS.items() if k != ph['backend']] + ([] if redis else ['app2', 'redis'])
     compose(env, 'stop', *others)
-    compose(env, 'up', '-d', '--build', '--force-recreate', b['service'], 'mock-api', timeout=3600)
+    compose(env, 'up', '-d', '--build', '--force-recreate', b['service'], 'mock-api', *(['redis', 'app2'] if redis else []), timeout=3600)
     wait_ready(b['port'])
+    for p in ph['extra_ports']:
+        wait_ready(p)
     info = call(f'http://127.0.0.1:{b["port"]}/lab/threads/info')
+    img = sh(['docker', 'inspect', '--format', '{{.Config.Image}} {{.Image}}', container(ph)], check=False).stdout.strip()
+    db = sh(['docker', 'inspect', '--format', '{{.Config.Image}}', f'{PROJECT}-{ {"spring": "mysql", "jakarta": "jakarta-db", "dotnet": "dotnet-db"}[ph["backend"]] }-1'], check=False).stdout.strip()
+    info = {**(info or {}), 'image': img, 'db_image': db}
     return env, info
 
 def settle(port, limit=300, fast_ms=200, needed=3):
@@ -131,9 +170,9 @@ def docker_stats(name):
     except Exception:
         return {}
 
-def run_k6(ph, exp, out_dir, measured=True):
+def run_k6(ph, exp, out_dir, measured=True, rep=None):
     b = BACKENDS[ph['backend']]
-    name = f'{ph["id"]}__{exp["id"]}'
+    name = f'{ph["id"]}__{exp["id"]}' + (f'__r{rep}' if rep else '')
     # High-rate runs need a longer warm-up: WildFly's larger code path is still being JIT-compiled after 10 s.
     duration = exp['duration'] if measured else ('30s' if exp['rate'] >= 1000 else '10s')
     args = ['docker', 'run', '--rm', '--network', NETWORK, '-v', f'{ROOT / "benchmarks" / "k6"}:/scripts:ro', '-v', f'{out_dir}:/out',
@@ -156,6 +195,144 @@ def run_k6(ph, exp, out_dir, measured=True):
     return {'k6_exit': p.returncode, 'p50': d.get('med'), 'p95': d.get('p(95)'), 'p99': d.get('p(99)'), 'max': d.get('max'), 'avg': d.get('avg'),
             'rps': reqs.get('rate'), 'requests': reqs.get('count'), 'failed_rate': failed.get('value'), 'dropped': drop.get('count', 0),
             'vus_max': m.get('vus_max', {}).get('value'), 'container': sample}
+
+def parallel(urls, method='GET', workers=100):
+    """Fire all URLs at once (barrier) and return (json results, elapsed ms per call)."""
+    barrier = threading.Barrier(min(len(urls), workers))
+    def one(u):
+        try: barrier.wait(timeout=30)
+        except threading.BrokenBarrierError: pass
+        t = time.perf_counter()
+        try: r = call(u, method, timeout=60)
+        except Exception as e: r = {'error': str(e)}
+        return r, (time.perf_counter() - t) * 1000
+    with concurrent.futures.ThreadPoolExecutor(min(len(urls), workers)) as ex:
+        out = list(ex.map(one, urls))
+    return [o[0] for o in out], [o[1] for o in out]
+
+def probe_di2(port):
+    """Lab 06: captive dependency identity and shared mutable state under 200 concurrent requests."""
+    base = f'http://127.0.0.1:{port}'; res = {}
+    fresh_mode = 'scoped' if port == BACKENDS['dotnet']['port'] else 'provider'
+    for mode in ('captured', fresh_mode):
+        ids = [call(f'{base}/lab/di/captive?mode={mode}')['id'] for _ in range(5)]
+        res[f'captive_{mode}'] = {'calls': 5, 'distinct_ids': len(set(map(str, ids)))}
+    for mode in ('singleton', 'request'):
+        bad = total = 0
+        for rnd in range(3):
+            urls = [f'{base}/lab/di/mutable?mode={mode}&user=u{rnd}-{i}&delayMs=5' for i in range(200)]
+            rs, _ = parallel(urls)
+            ok = [r for r in rs if 'correct' in r]
+            bad += sum(not r['correct'] for r in ok); total += len(ok)
+        res[f'mutable_{mode}'] = {'requests': total, 'wrong_user_returned': bad}
+    return res
+
+def probe_events(port):
+    """Lab 07: 100 concurrent event + 100 direct changes and 20 rollbacks on a fresh product id; audit must be exactly 200."""
+    base = f'http://127.0.0.1:{port}'; pid = int(time.time()) % 1_000_000 + 100_000
+    before = call(f'{base}/lab/events/state?id={pid}')
+    urls = [f'{base}/lab/events/price-change?id={pid}&cents=500&mode={"event" if i % 2 else "direct"}' for i in range(200)]
+    rs, ms = parallel(urls, 'POST', workers=50)
+    errors = sum('error' in r for r in rs)
+    rb, _ = parallel([f'{base}/lab/events/price-change?id={pid}&cents=777&mode=event&rollback=true' for _ in range(20)], 'POST', workers=20)
+    end = time.time() + 15; state = None
+    while time.time() < end:
+        state = call(f'{base}/lab/events/state?id={pid}')
+        if state['auditCount'] - before['auditCount'] >= 200 - errors: break
+        time.sleep(0.5)
+    time.sleep(1); state = call(f'{base}/lab/events/state?id={pid}')
+    return {'product': pid, 'committed_changes': 200 - errors, 'request_errors': errors, 'audit_delta': state['auditCount'] - before['auditCount'],
+            'rollbacks_sent': 20, 'rollback_http_errors': sum('error' in r for r in rb), 'final_cents': state['cents'],
+            'rolled_back_price_visible': state['cents'] == 777, 'p50_ms': statistics.median(ms)}
+
+def probe_pinning(port):
+    base = f'http://127.0.0.1:{port}'; res = {}
+    for mode in ('synchronized', 'reentrant'):
+        url = f'{base}/lab/threads/pinning?mode={mode}&tasks=100&sleepMs=50'
+        for _ in range(3): call(url)
+        runs = [call(url) for _ in range(10)]
+        res[mode] = {'median_ms': statistics.median(r['elapsedMs'] for r in runs), 'min_ms': min(r['elapsedMs'] for r in runs),
+                     'max_ms': max(r['elapsedMs'] for r in runs), 'carriers': runs[0]['carriers'], 'runtime': runs[0]['runtime']}
+    return res
+
+def probe_redis(port, port2=18083):
+    """Lab 08: 50 concurrent misses on each of two instances (100 total) per mode; count loads in Redis."""
+    res = {}
+    for mode in ('none', 'local', 'distributed'):
+        loads, p50 = [], []
+        for _ in range(5):
+            call(f'http://127.0.0.1:{port}/lab/redis/reset?id=42', 'POST')
+            urls = [f'http://127.0.0.1:{p}/lab/redis/product/42?mode={mode}' for p in (port, port2) for _ in range(50)]
+            rs, ms = parallel(urls)
+            loads.append(call(f'http://127.0.0.1:{port}/lab/redis/loads?id=42')['loads']); p50.append(statistics.median(ms))
+        res[mode] = {'requests_per_round': 100, 'instances': 2, 'loads_min': min(loads), 'loads_max': max(loads), 'loads': loads,
+                     'client_p50_ms_median': statistics.median(p50)}
+    return res
+
+def probe_ownership(port):
+    """Lab 06: who disposes container-created objects? 100 objects per mode; counts created vs closed/disposed."""
+    base = f'http://127.0.0.1:{port}'
+    modes = {BACKENDS['spring']['port']: ('container', 'caller'), BACKENDS['jakarta']['port']: ('leak', 'destroy'), BACKENDS['dotnet']['port']: ('root', 'scope')}[port]
+    res = {m: call(f'{base}/lab/di/ownership?mode={m}&n=100') for m in modes}
+    if port == BACKENDS['jakarta']['port']:
+        res['background_plain'] = call(f'{base}/lab/di/background?mode=plain')
+        res['background_activated'] = call(f'{base}/lab/di/background?mode=activated')
+    return res
+
+def probe_failure(port):
+    """Lab 07: the audit side effect fails (failAudit=true) for 10 direct and 10 event changes on fresh products."""
+    base = f'http://127.0.0.1:{port}'; out = {}
+    for mode in ('direct', 'event'):
+        pid = int(time.time() * 1000) % 1_000_000 + 3_000_000
+        codes = []
+        for i in range(10):
+            try: call(f'{base}/lab/events/price-change?id={pid}&cents={100 + i}&mode={mode}&failAudit=true', 'POST'); codes.append(200)
+            except urllib.error.HTTPError as e: codes.append(e.code)
+        time.sleep(5)       # > outbox retry interval; after-commit listeners are long done
+        st = call(f'{base}/lab/events/state?id={pid}')
+        out[mode] = {'http_status': sorted(set(codes)), 'price_committed': st['cents'] != -1, 'final_cents': st['cents'],
+                     'audit_rows': st['auditCount'], 'outbox_pending': st.get('outboxPending')}
+    return out
+
+def probe_staleness(port, samples=5):
+    """Lab 01: time from a committed rename until the cache serves it (journal refresh every 10 s, no manual refresh)."""
+    base = f'http://127.0.0.1:{port}'; out = []
+    for i in range(samples):
+        name = f'Staleness {int(time.time() * 1000)}'
+        body = json.dumps({'name': name}).encode()
+        req = urllib.request.Request(f'{base}/api/products/77', data=body, method='PUT', headers={'Content-Type': 'application/json'})
+        urllib.request.urlopen(req, timeout=30).read(); t0 = time.perf_counter()
+        while time.perf_counter() - t0 < 30:
+            if call(f'{base}/api/products/77')['name'] == name: break
+            time.sleep(0.05)
+        out.append(round((time.perf_counter() - t0) * 1000))
+        time.sleep(1.7 * (i + 1))   # de-correlate the samples from the 10 s refresh period
+    return {'samples_ms': out, 'median_ms': statistics.median(out), 'max_ms': max(out), 'refresh_interval_s': 10}
+
+def probe_redis2(port, port2=18083):
+    """Lab 08: cross-instance consistency, explicit invalidation and Redis failure behaviour."""
+    a, b = f'http://127.0.0.1:{port}', f'http://127.0.0.1:{port2}'; res = {}
+    original = call(f'{a}/api/products/42')['name']
+    def rename(n):
+        req = urllib.request.Request(f'{a}/api/products/42', data=json.dumps({'name': n}).encode(), method='PUT', headers={'Content-Type': 'application/json'})
+        urllib.request.urlopen(req, timeout=30).read()
+    call(f'{a}/lab/redis/reset?id=42', 'POST'); call(f'{a}/lab/redis/product/42')          # A loads and caches the old name
+    new = f'Product 42 v{int(time.time())}'; rename(new)                                   # DB write, no cache invalidation
+    stale = json.loads(call(f'{b}/lab/redis/product/42')['value'])['name']
+    call(f'{a}/lab/redis/invalidate?id=42', 'POST')
+    fresh = json.loads(call(f'{b}/lab/redis/product/42')['value'])['name']
+    res['consistency'] = {'db_value': new, 'instance_b_before_invalidate': stale, 'stale_read': stale != new,
+                          'instance_b_after_invalidate': fresh, 'fresh_after_invalidate': fresh == new, 'ttl_s': 30}
+    rename(original); call(f'{a}/lab/redis/reset?id=42', 'POST')
+    sh(['docker', 'stop', f'{PROJECT}-redis-1'], check=False, timeout=120)
+    try:
+        t = time.perf_counter(); r = call(f'{a}/lab/redis/product/42'); ms = (time.perf_counter() - t) * 1000
+        catalog_ok = call(f'{a}/api/products/42')['id'] == 42
+        res['redis_down'] = {'source': r['source'], 'error': r.get('error'), 'client_ms': round(ms, 1), 'catalog_api_still_ok': catalog_ok}
+    finally:
+        sh(['docker', 'start', f'{PROJECT}-redis-1'], check=False, timeout=120); time.sleep(3)
+    r = call(f'{a}/lab/redis/product/42'); res['redis_back'] = {'source': r['source']}
+    return res
 
 def probe_correctness(port):
     base = f'http://127.0.0.1:{port}'
@@ -214,7 +391,27 @@ def write_report(out, meta, results):
             c = r.get('container', {})
             L.append(f'| {ph["id"]} | {e["id"]} | {e["lab"]} | {e["rate"]} | {f(r["rps"])} | {f(r["p50"],2)} | {f(r["p95"],2)} | {f(r["p99"],2)} | {f(r["max"],1)} | '
                      f'{f((r["failed_rate"] or 0)*100,2)}% | {r["dropped"]} | {f(r["vus_max"],0)} | {c.get("cpu","n/a")} | {c.get("mem","n/a")} |')
-    cpu_rows = [(ph, ph['cpu']) for ph in results if ph.get('cpu')]
+    groups = {}
+    for ph in results:
+        for e in ph['k6']:
+            if e.get('rep') and 'error' not in (e['result'] or {}):
+                groups.setdefault((ph['id'], e['id'], e['lab'], e['rate']), []).append(e['result'])
+    if groups:
+        L += ['', '## Repeatability — median [min – max] over repetitions', '',
+              '| Phase | Experiment | Lab | Target rps | n | Achieved rps | p50 ms | p99 ms | Dropped | Failed % |', '|---|---|---|---:|---:|---|---|---|---|---|']
+        def mm(vals, d=1):
+            vals = [v for v in vals if v is not None]
+            return f'{f(statistics.median(vals), d)} [{f(min(vals), d)} – {f(max(vals), d)}]' if vals else 'n/a'
+        for (pid, eid, lab, rate), rs in groups.items():
+            L.append(f'| {pid} | {eid} | {lab} | {rate} | {len(rs)} | {mm([x["rps"] for x in rs])} | {mm([x["p50"] for x in rs], 2)} | {mm([x["p99"] for x in rs], 2)} | '
+                     f'{mm([x["dropped"] for x in rs], 0)} | {mm([(x["failed_rate"] or 0) * 100 for x in rs], 2)} |')
+    for key, title in (('di2', 'DI captive / mutable state (Lab 06)'), ('events', 'Transactional events (Lab 07)'), ('pinning', 'Virtual-thread pinning (Lab 04)'), ('redis', 'Redis shared cache stampede (Lab 08)')):
+        rows = [(ph, ph[key]) for ph in results if ph.get(key)]
+        if rows:
+            L += ['', f'## Probe: {title}', '']
+            for ph, c in rows:
+                L += [f'### {ph["id"]}', '', '```json', json.dumps(c, indent=1), '```', '']
+    cpu_rows = [(ph, ph['cpu']) for ph in results if ph.get('cpu') and 'error' not in ph['cpu']]
     if cpu_rows:
         L += ['', '## CPU probe (Lab 05) — elapsed ms per request, median of 15 after 5 warm-ups (count=100000, rounds=500)', '',
               '| Phase | CPU quota | Visible processors | sequential | parallel-2 | parallel-4 | parallel-8 | Speed-up 8 vs seq | Checksums equal |', '|---|---:|---:|---:|---:|---:|---:|---:|---|']
@@ -242,7 +439,12 @@ def main():
     out = ROOT / 'reports' / 'http-runs' / datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%SZ'); out.mkdir(parents=True)
     meta = {'utc': datetime.datetime.now(datetime.timezone.utc).isoformat(), 'os': platform.platform(), 'processor': a.note or platform.processor(),
             'logical_cpu_count': os.cpu_count(), 'docker': sh(['docker', 'version', '--format', '{{.Server.Version}}'], check=False).stdout.strip(),
-            'k6_image': K6_IMAGE, 'phases': [p['id'] for p in phases], 'status': 'running'}
+            'k6_image': K6_IMAGE, 'phases': [p['id'] for p in phases], 'status': 'running',
+            'git_commit': sh(['git', 'rev-parse', 'HEAD'], check=False).stdout.strip(),
+            'git_dirty_files': len([l for l in sh(['git', 'status', '--porcelain'], check=False).stdout.splitlines() if l.strip()]),
+            'workload': {'products': 100000, 'warmup': '10 s (30 s for >= 1000 req/s), one per experiment', 'measure': 'per experiment, usually 30 s',
+                         'executor': 'k6 constant-arrival-rate', 'backend_limits': 'cpus per phase (default 4), mem_limit 2g',
+                         'upstream_mock': '100/200/300 ms', 'repetitions': {p['id']: p.get('repeat', 1) for p in phases}}}
     (out / 'environment.json').write_text(json.dumps(meta, indent=2))
     sh(['docker', 'pull', '-q', K6_IMAGE], check=False, timeout=600)
     results = []
@@ -252,16 +454,23 @@ def main():
             env, info = start(ph)
             port = BACKENDS[ph['backend']]['port']
             r = {'id': ph['id'], 'title': ph['title'], 'cpus': ph['cpus'], 'env': ph['env'], 'info': info, 'k6': []}
+            reps = ph.get('repeat', 1)
             for e in ph['experiments']:
                 settle(port)
-                run_k6(ph, e, out, measured=False)
-                res = run_k6(ph, e, out)
-                res['settled_after'] = settle(port)
-                print(f'   {e["id"]}: {json.dumps(res)}', flush=True)
-                r['k6'].append({**e, 'result': res})
+                run_k6(ph, e, out, measured=False)          # one warm-up per experiment, then `reps` measured runs
+                for i in range(1, reps + 1):
+                    if i > 1: settle(port)
+                    res = run_k6(ph, e, out, rep=i if reps > 1 else None)
+                    res['settled_after'] = settle(port)
+                    print(f'   {e["id"]}{f" r{i}" if reps > 1 else ""}: {json.dumps(res)}', flush=True)
+                    r['k6'].append({**e, 'rep': i if reps > 1 else None, 'result': res})
             settle(port)
-            if 'correctness' in ph['probes']: r['correctness'] = probe_correctness(port)
-            if 'cpu' in ph['probes']: r['cpu'] = probe_cpu(port)
+            probes = {'correctness': probe_correctness, 'cpu': probe_cpu, 'di2': probe_di2, 'events': probe_events, 'pinning': probe_pinning, 'redis': probe_redis,
+                      'ownership': probe_ownership, 'failure': probe_failure, 'staleness': probe_staleness, 'redis2': probe_redis2}
+            for name in ph['probes']:
+                try: r[name] = probes[name](port)
+                except Exception as ex: r[name] = {'error': repr(ex)}
+                print(f'   probe {name}: {json.dumps(r[name])[:400]}', flush=True)
             results.append(r)
             (out / 'probes.json').write_text(json.dumps(results, indent=1))
             write_report(out, meta, results)

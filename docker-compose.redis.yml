@@ -1,4 +1,21 @@
+# Lab 08 shared cache: Redis + a second Spring Boot instance on the same MySQL and Redis.
+#   docker compose -f docker-compose.yml -f docker-compose.redis.yml up -d --build mysql mock-api redis app app2
+# Note: both instances run the catalogue refresh job against one journal (the lab normally assumes a single
+# consumer). That is harmless for the Redis experiments, which do not modify products.
 services:
   redis:
     image: redis:7.4
-    ports: ['127.0.0.1:6379:6379']
+    ports: ['127.0.0.1:${REDIS_PORT:-6379}:6379']
+  app:
+    environment:
+      REDIS_HOST: redis
+  app2:
+    extends:
+      file: docker-compose.yml
+      service: app
+    environment:
+      REDIS_HOST: redis
+    ports: !override
+      - 127.0.0.1:${LAB_PORT2:-8083}:8080
+    cpus: ${LAB_CPUS:-4}
+    mem_limit: ${LAB_MEMORY:-2g}

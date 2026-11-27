@@ -1,7 +1,7 @@
 """Two independent Redis clients and TTL expiry. No external Python dependencies."""
-import socket,time,json
+import socket,time,json,os
 class Redis:
- def __init__(self): self.sock=socket.create_connection(('127.0.0.1',6379),timeout=5);self.reader=self.sock.makefile('rb')
+ def __init__(self): self.sock=socket.create_connection(('127.0.0.1',int(os.environ.get('REDIS_PORT','6379'))),timeout=5);self.reader=self.sock.makefile('rb')
  def call(self,*parts):
   args=[str(x).encode() for x in parts];self.sock.sendall(b'*'+str(len(args)).encode()+b'\r\n'+b''.join(b'$'+str(len(x)).encode()+b'\r\n'+x+b'\r\n' for x in args));line=self.reader.readline();kind,rest=line[:1],line[1:-2]
   if kind==b'+':return rest.decode()
