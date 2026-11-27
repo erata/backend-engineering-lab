@@ -1,0 +1,970 @@
+[
+ {
+  "id": "v4-rep5-spring-j25-platform",
+  "title": "Spring / Java 25 / platform, I/O, 5 repetitions",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "thread": "http-nio-0.0.0.0-8080-exec-3",
+   "runtime": "25.0.5.1",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-app sha256:df7139e7a20f3f43cc250474ecd7a6d30ead4f5d2f91158d18c8bf7bdb631626",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 607.067552,
+     "p95": 609.28241755,
+     "p99": 611.3397903800001,
+     "max": 617.713383,
+     "avg": 607.1979673086664,
+     "rps": 49.038112055813535,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "38.68%",
+      "mem": "328.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 606.415276,
+     "p95": 608.546035,
+     "p99": 610.090359,
+     "max": 622.832485,
+     "avg": 606.5215976369086,
+     "rps": 49.03710468129753,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "58.62%",
+      "mem": "337.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.67145,
+     "p95": 607.490859,
+     "p99": 608.45711,
+     "max": 610.388761,
+     "avg": 605.767618971352,
+     "rps": 49.03917634571491,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "18.10%",
+      "mem": "341.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.750643,
+     "p95": 608.467135,
+     "p99": 610.242774,
+     "max": 617.265058,
+     "avg": 605.9332095269814,
+     "rps": 49.04017807930788,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "14.88%",
+      "mem": "353.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.664295,
+     "p95": 608.387501,
+     "p99": 609.678855,
+     "max": 611.634879,
+     "avg": 605.8873820946026,
+     "rps": 49.03967564766209,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "19.55%",
+      "mem": "351.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.749736,
+     "p95": 607.753507,
+     "p99": 608.733799,
+     "max": 617.83036,
+     "avg": 605.8848090506322,
+     "rps": 49.03783277985801,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "13.81%",
+      "mem": "354.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.5634915,
+     "p95": 607.3605083499999,
+     "p99": 608.36815131,
+     "max": 610.935037,
+     "avg": 605.6549440279996,
+     "rps": 49.03390553389248,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "17.65%",
+      "mem": "353.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.5088315,
+     "p95": 607.1904538,
+     "p99": 608.1922188100001,
+     "max": 612.897111,
+     "avg": 605.6172655739989,
+     "rps": 49.040024995664126,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "15.75%",
+      "mem": "353.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.6413454999999,
+     "p95": 607.6710202,
+     "p99": 608.65422657,
+     "max": 612.197195,
+     "avg": 605.7451871693335,
+     "rps": 49.03747604333893,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "23.51%",
+      "mem": "354.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.488328,
+     "p95": 607.14601,
+     "p99": 607.870846,
+     "max": 621.958338,
+     "avg": 605.5875472571623,
+     "rps": 49.03815657662948,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "17.04%",
+      "mem": "354.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 303.366495,
+     "p95": 304.931114,
+     "p99": 305.753652,
+     "max": 309.11016,
+     "avg": 303.48377718521004,
+     "rps": 49.52945865301785,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "23.21%",
+      "mem": "357.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 303.115542,
+     "p95": 304.356606,
+     "p99": 305.197226,
+     "max": 308.752068,
+     "avg": 303.1951495636244,
+     "rps": 49.52840192595558,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "16.64%",
+      "mem": "358.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 303.354018,
+     "p95": 304.659275,
+     "p99": 305.66036,
+     "max": 316.212231,
+     "avg": 303.421616828115,
+     "rps": 49.52787461626555,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "18.26%",
+      "mem": "357.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.988562,
+     "p95": 304.30023845,
+     "p99": 305.36015813999995,
+     "max": 313.608532,
+     "avg": 303.0790401186669,
+     "rps": 49.530020031321,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "17.49%",
+      "mem": "358.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.68879,
+     "p95": 303.679859,
+     "p99": 304.440178,
+     "max": 308.075431,
+     "avg": 302.74692988274467,
+     "rps": 49.52876191755114,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "12.46%",
+      "mem": "357.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 2435.4681485,
+     "p95": 3875.8153605999996,
+     "p99": 4017.1248418300006,
+     "max": 4086.009386,
+     "avg": 2425.932828931017,
+     "rps": 324.32360743186166,
+     "requests": 11048,
+     "failed_rate": 0,
+     "dropped": 953,
+     "vus_max": 1343,
+     "container": {
+      "cpu": "76.52%",
+      "mem": "464.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 2426.307837,
+     "p95": 3861.80651675,
+     "p99": 4001.0453371,
+     "max": 4094.848209,
+     "avg": 2417.916069429686,
+     "rps": 324.09189981650826,
+     "requests": 11036,
+     "failed_rate": 0,
+     "dropped": 964,
+     "vus_max": 1340,
+     "container": {
+      "cpu": "91.16%",
+      "mem": "482.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 2431.402527,
+     "p95": 3879.7276458,
+     "p99": 4018.1492234400002,
+     "max": 4089.686513,
+     "avg": 2424.9214853995854,
+     "rps": 324.28637732341156,
+     "requests": 11049,
+     "failed_rate": 0,
+     "dropped": 951,
+     "vus_max": 1342,
+     "container": {
+      "cpu": "68.71%",
+      "mem": "486.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 2435.8014335,
+     "p95": 3876.0900419,
+     "p99": 4014.76185506,
+     "max": 4091.416132,
+     "avg": 2425.288133833814,
+     "rps": 324.187351669226,
+     "requests": 11048,
+     "failed_rate": 0,
+     "dropped": 953,
+     "vus_max": 1339,
+     "container": {
+      "cpu": "83.65%",
+      "mem": "493.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 2419.2171155,
+     "p95": 3878.31766925,
+     "p99": 4013.6892521199998,
+     "max": 4107.398027,
+     "avg": 2419.7672817987163,
+     "rps": 323.94264851722784,
+     "requests": 11044,
+     "failed_rate": 0,
+     "dropped": 957,
+     "vus_max": 1344,
+     "container": {
+      "cpu": "82.74%",
+      "mem": "495.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ]
+ },
+ {
+  "id": "v4-rep5-spring-j25-virtual",
+  "title": "Spring / Java 25 / virtual, I/O, 5 repetitions",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "true",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "thread": "tomcat-handler-1",
+   "virtual": true,
+   "runtime": "25.0.5.1",
+   "image": "backend-engineering-lab-full-app sha256:df7139e7a20f3f43cc250474ecd7a6d30ead4f5d2f91158d18c8bf7bdb631626",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 607.190626,
+     "p95": 610.571884,
+     "p99": 613.577819,
+     "max": 659.480624,
+     "avg": 607.6085564157225,
+     "rps": 49.035462391224186,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "35.28%",
+      "mem": "347MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 610.490148,
+     "p95": 615.03822785,
+     "p99": 623.72460573,
+     "max": 638.679118,
+     "avg": 610.868394468,
+     "rps": 49.03035081761064,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "136.56%",
+      "mem": "349.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 606.934614,
+     "p95": 609.879714,
+     "p99": 611.176855,
+     "max": 614.025325,
+     "avg": 607.0844817255162,
+     "rps": 49.03489877141381,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "30.72%",
+      "mem": "365.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.4136820000001,
+     "p95": 607.3549879999999,
+     "p99": 608.77410131,
+     "max": 616.144436,
+     "avg": 605.5428607626659,
+     "rps": 49.03215663657582,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "16.77%",
+      "mem": "374.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking",
+    "lab": "03",
+    "path": "/lab/io/blocking",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.6503,
+     "p95": 607.475435,
+     "p99": 608.48915,
+     "max": 613.131507,
+     "avg": 605.7436477208527,
+     "rps": 49.039942968400766,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "18.73%",
+      "mem": "374.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.992715,
+     "p95": 615.8259487500001,
+     "p99": 634.91257444,
+     "max": 688.468585,
+     "avg": 607.2841892370025,
+     "rps": 392.08013879939864,
+     "requests": 12000,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 400,
+     "container": {
+      "cpu": "133.94%",
+      "mem": "472.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.779468,
+     "p95": 609.275497,
+     "p99": 617.601541,
+     "max": 637.032664,
+     "avg": 606.2178784621273,
+     "rps": 392.05807700553504,
+     "requests": 12001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 400,
+     "container": {
+      "cpu": "140.07%",
+      "mem": "488MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.58516,
+     "p95": 608.05835105,
+     "p99": 616.10728281,
+     "max": 629.979657,
+     "avg": 605.9040552632517,
+     "rps": 392.1019628450461,
+     "requests": 12000,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 400,
+     "container": {
+      "cpu": "126.84%",
+      "mem": "488.3MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 607.185201,
+     "p95": 664.661536,
+     "p99": 714.492826,
+     "max": 784.843836,
+     "avg": 617.3825649312568,
+     "rps": 391.83498658806064,
+     "requests": 12001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 400,
+     "container": {
+      "cpu": "221.51%",
+      "mem": "488.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 606.164629,
+     "p95": 614.733605,
+     "p99": 631.259021,
+     "max": 667.303352,
+     "avg": 607.3663524160481,
+     "rps": 392.01205504156525,
+     "requests": 12001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 400,
+     "container": {
+      "cpu": "127.61%",
+      "mem": "495.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ]
+ }
+]

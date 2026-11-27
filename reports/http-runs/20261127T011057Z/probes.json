@@ -1,0 +1,1975 @@
+[
+ {
+  "id": "v2-rep5-jakarta",
+  "title": "Jakarta EE, 5 repetitions",
+  "cpus": 4,
+  "env": {
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "thread": "default task-2",
+   "runtime": "25.0.4.1",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-jakarta sha256:09d844d1ae0e71794f9645d83a999f58e0e1f12da53827094a139c098aa8e029",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 562.871861,
+     "p95": 934.3167620000002,
+     "p99": 1130.6046338799986,
+     "max": 2708.497741,
+     "avg": 571.4434969322547,
+     "rps": 1531.9166452402628,
+     "requests": 46273,
+     "failed_rate": 0,
+     "dropped": 13729,
+     "vus_max": 1000,
+     "container": {
+      "cpu": "417.34%",
+      "mem": "607.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 2.049674,
+     "p95": 93.79132679999998,
+     "p99": 217.95562505000004,
+     "max": 746.307568,
+     "avg": 21.82311179324298,
+     "rps": 1987.4885043972326,
+     "requests": 59640,
+     "failed_rate": 0,
+     "dropped": 363,
+     "vus_max": 344,
+     "container": {
+      "cpu": "346.92%",
+      "mem": "609.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.432238,
+     "p95": 41.59013199999998,
+     "p99": 153.32500375999993,
+     "max": 540.444023,
+     "avg": 7.975572518073618,
+     "rps": 1988.955253184763,
+     "requests": 59673,
+     "failed_rate": 0,
+     "dropped": 328,
+     "vus_max": 327,
+     "container": {
+      "cpu": "241.29%",
+      "mem": "609.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.437802,
+     "p95": 34.22426949999991,
+     "p99": 105.60123560999995,
+     "max": 509.807507,
+     "avg": 6.639714821858495,
+     "rps": 1993.211817434149,
+     "requests": 59812,
+     "failed_rate": 0,
+     "dropped": 188,
+     "vus_max": 268,
+     "container": {
+      "cpu": "313.21%",
+      "mem": "607.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 1.648666,
+     "p95": 199.69126814999981,
+     "p99": 343.3569184499999,
+     "max": 1165.279838,
+     "avg": 37.82237302360237,
+     "rps": 1965.802765696537,
+     "requests": 58978,
+     "failed_rate": 0,
+     "dropped": 1021,
+     "vus_max": 496,
+     "container": {
+      "cpu": "452.47%",
+      "mem": "610.3MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 303.737048,
+     "p95": 305.248337,
+     "p99": 306.26053,
+     "max": 307.7368,
+     "avg": 303.8520394836776,
+     "rps": 49.53000680713586,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "43.59%",
+      "mem": "619.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 303.780241,
+     "p95": 309.176629,
+     "p99": 376.806026,
+     "max": 846.186757,
+     "avg": 306.5495405662892,
+     "rps": 49.530573007668174,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "33.73%",
+      "mem": "613.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 303.489571,
+     "p95": 305.901032,
+     "p99": 307.057325,
+     "max": 310.756543,
+     "avg": 303.75832882678236,
+     "rps": 49.53183864852556,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "35.18%",
+      "mem": "613MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 303.586888,
+     "p95": 305.368374,
+     "p99": 306.489715,
+     "max": 309.201766,
+     "avg": 303.7596987261815,
+     "rps": 49.53072358151561,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "18.63%",
+      "mem": "613.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 304.01152,
+     "p95": 307.383393,
+     "p99": 308.904352,
+     "max": 312.013025,
+     "avg": 304.36733938441034,
+     "rps": 49.52942721457965,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "32.20%",
+      "mem": "613.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ]
+ },
+ {
+  "id": "v2-rep5-dotnet10",
+  "title": ".NET 10, 5 repetitions",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "10.0",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 4,
+   "threadPool": 5,
+   "image": "backend-engineering-lab-full-dotnet sha256:d15d83080c1accd1481a78a6c2c9f6d8ccc82d5d212296ec62885f0be0302d4a",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.913989,
+     "p95": 8.219473999999988,
+     "p99": 29.088972119999916,
+     "max": 133.574921,
+     "avg": 2.293248261503597,
+     "rps": 1999.3911557202698,
+     "requests": 60003,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 200,
+     "container": {
+      "cpu": "181.67%",
+      "mem": "145.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.927664,
+     "p95": 5.428566,
+     "p99": 21.420142,
+     "max": 95.581381,
+     "avg": 1.853661848035867,
+     "rps": 1999.9522486026676,
+     "requests": 60001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 200,
+     "container": {
+      "cpu": "176.42%",
+      "mem": "104.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.8126565,
+     "p95": 12.407635799999998,
+     "p99": 54.397530120000035,
+     "max": 276.793008,
+     "avg": 3.185464369268665,
+     "rps": 1988.8088021590515,
+     "requests": 59672,
+     "failed_rate": 0,
+     "dropped": 330,
+     "vus_max": 233,
+     "container": {
+      "cpu": "126.37%",
+      "mem": "104.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.939461,
+     "p95": 11.591865,
+     "p99": 40.095077,
+     "max": 106.087009,
+     "avg": 2.828321985050245,
+     "rps": 1999.901905246519,
+     "requests": 60001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 200,
+     "container": {
+      "cpu": "181.63%",
+      "mem": "112.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.942571,
+     "p95": 11.217613,
+     "p99": 35.482317,
+     "max": 107.808326,
+     "avg": 2.6844317057049243,
+     "rps": 1999.937317276035,
+     "requests": 60001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 200,
+     "container": {
+      "cpu": "184.75%",
+      "mem": "115.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 603.792709,
+     "p95": 605.48701,
+     "p99": 607.609105,
+     "max": 627.813505,
+     "avg": 604.0007530912727,
+     "rps": 49.04137430370801,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "16.61%",
+      "mem": "109.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 603.7134834999999,
+     "p95": 605.34611255,
+     "p99": 606.85371603,
+     "max": 611.184217,
+     "avg": 603.8724821220003,
+     "rps": 49.04041544941562,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "14.71%",
+      "mem": "117.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 603.5107425,
+     "p95": 605.13262525,
+     "p99": 606.01428579,
+     "max": 610.167939,
+     "avg": 603.640470054001,
+     "rps": 49.04414270282902,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "12.40%",
+      "mem": "122.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 603.453433,
+     "p95": 605.50609,
+     "p99": 607.195949,
+     "max": 623.013286,
+     "avg": 603.7250559047301,
+     "rps": 49.042126511453766,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "15.24%",
+      "mem": "130.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-sequential-async",
+    "lab": "03",
+    "path": "/lab/io/sequential-async",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 603.4701045,
+     "p95": 604.9930556,
+     "p99": 605.8970499000001,
+     "max": 613.164493,
+     "avg": 603.6246656060013,
+     "rps": 49.04482865582523,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "13.68%",
+      "mem": "134.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.235157,
+     "p95": 303.318038,
+     "p99": 304.094122,
+     "max": 307.828814,
+     "avg": 302.3213029280482,
+     "rps": 49.52980641194154,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "12.78%",
+      "mem": "138MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.390092,
+     "p95": 303.89156045000004,
+     "p99": 304.73268628,
+     "max": 309.758821,
+     "avg": 302.54109322533344,
+     "rps": 49.52837355645161,
+     "requests": 1500,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "13.67%",
+      "mem": "140.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.312699,
+     "p95": 303.494433,
+     "p99": 304.283754,
+     "max": 305.249211,
+     "avg": 302.41012406728856,
+     "rps": 49.53213041069892,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "15.01%",
+      "mem": "144.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 4,
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.231279,
+     "p95": 303.286087,
+     "p99": 304.098097,
+     "max": 356.078167,
+     "avg": 302.448465153231,
+     "rps": 49.53193258903212,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "12.58%",
+      "mem": "149.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-concurrent",
+    "lab": "03",
+    "path": "/lab/io/concurrent",
+    "rate": 50,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": 5,
+    "result": {
+     "k6_exit": 0,
+     "p50": 302.332679,
+     "p95": 303.402296,
+     "p99": 304.40221,
+     "max": 307.012697,
+     "avg": 302.4121162531643,
+     "rps": 49.530905290911356,
+     "requests": 1501,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "13.61%",
+      "mem": "157.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ]
+ },
+ {
+  "id": "v2-new-spring",
+  "title": "Spring: real DB pool, DI captive/mutable, transactional events",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "thread": "http-nio-0.0.0.0-8080-exec-3",
+   "runtime": "25.0.5.1",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-app sha256:df7139e7a20f3f43cc250474ecd7a6d30ead4f5d2f91158d18c8bf7bdb631626",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "dbpool-5-100rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=5&ms=30",
+    "rate": 100,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 5, 30 ms per connection: capacity ~166 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 31.879387,
+     "p95": 33.218745,
+     "p99": 35.326783,
+     "max": 40.05749,
+     "avg": 32.03711672242589,
+     "rps": 99.92372596244917,
+     "requests": 3001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "23.30%",
+      "mem": "359.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-5-300rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=5&ms=30",
+    "rate": 300,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 5, 30 ms per connection: capacity ~166 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 99,
+     "p50": 3484.1414145,
+     "p95": 6084.26779525,
+     "p99": 6301.20072865,
+     "max": 6377.47547,
+     "avg": 3439.3689531105483,
+     "rps": 212.13838040449005,
+     "requests": 7716,
+     "failed_rate": 0.234447900466563,
+     "dropped": 1284,
+     "vus_max": 1383,
+     "container": {
+      "cpu": "44.93%",
+      "mem": "452.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-20-100rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=20&ms=30",
+    "rate": 100,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 20, 30 ms per connection: capacity ~666 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 31.331923,
+     "p95": 31.788156,
+     "p99": 32.22239,
+     "max": 36.479041,
+     "avg": 31.359037624125286,
+     "rps": 99.92643591599787,
+     "requests": 3001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "8.88%",
+      "mem": "463.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-20-300rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=20&ms=30",
+    "rate": 300,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 20, 30 ms per connection: capacity ~666 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 31.099316,
+     "p95": 31.606012,
+     "p99": 31.991238,
+     "max": 39.425963,
+     "avg": 31.15133046428184,
+     "rps": 299.71520178131084,
+     "requests": 9001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "18.01%",
+      "mem": "465.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ],
+  "di2": {
+   "captive_captured": {
+    "calls": 5,
+    "distinct_ids": 1
+   },
+   "captive_provider": {
+    "calls": 5,
+    "distinct_ids": 5
+   },
+   "mutable_singleton": {
+    "requests": 600,
+    "wrong_user_returned": 586
+   },
+   "mutable_request": {
+    "requests": 600,
+    "wrong_user_returned": 0
+   }
+  },
+  "events": {
+   "product": 843265,
+   "committed_changes": 200,
+   "request_errors": 0,
+   "audit_delta": 200,
+   "rollbacks_sent": 20,
+   "rollback_http_errors": 20,
+   "final_cents": 500,
+   "rolled_back_price_visible": false,
+   "p50_ms": 185.9437000239268
+  }
+ },
+ {
+  "id": "v2-new-jakarta",
+  "title": "Jakarta: real DB pool, JTA events, managed virtual threads, DI",
+  "cpus": 4,
+  "env": {},
+  "info": {
+   "runtime": "25.0.4.1",
+   "virtual": false,
+   "thread": "default task-2",
+   "image": "backend-engineering-lab-full-jakarta sha256:09d844d1ae0e71794f9645d83a999f58e0e1f12da53827094a139c098aa8e029",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "dbpool-5-100rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=5&ms=30",
+    "rate": 100,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 5, 30 ms per connection: capacity ~166 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 32.6832435,
+     "p95": 33.743137999999995,
+     "p99": 34.99808665,
+     "max": 49.429645,
+     "avg": 32.80118043466671,
+     "rps": 99.92317023351622,
+     "requests": 3000,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "25.57%",
+      "mem": "447.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-5-300rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=5&ms=30",
+    "rate": 300,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 5, 30 ms per connection: capacity ~166 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 6053.547425,
+     "p95": 9234.8486684,
+     "p99": 9253.773529560001,
+     "max": 9257.592236,
+     "avg": 5753.171085610374,
+     "rps": 162.33298256830525,
+     "requests": 6365,
+     "failed_rate": 0,
+     "dropped": 2635,
+     "vus_max": 1500,
+     "container": {
+      "cpu": "28.33%",
+      "mem": "482.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-20-100rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=20&ms=30",
+    "rate": 100,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 20, 30 ms per connection: capacity ~666 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 31.943997,
+     "p95": 32.541171,
+     "p99": 33.25538,
+     "max": 48.578369,
+     "avg": 31.98982674841712,
+     "rps": 99.92097435263614,
+     "requests": 3001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "15.04%",
+      "mem": "479.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-20-300rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=20&ms=30",
+    "rate": 300,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 20, 30 ms per connection: capacity ~666 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 31.6678165,
+     "p95": 32.9564707,
+     "p99": 34.358116460000005,
+     "max": 59.86496,
+     "avg": 31.848261433000022,
+     "rps": 299.7125620560284,
+     "requests": 9000,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "36.29%",
+      "mem": "475.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-direct",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=direct&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 14.537446,
+     "p95": 195.669692,
+     "p99": 220.549591,
+     "max": 244.183098,
+     "avg": 57.93445004849193,
+     "rps": 199.97743136220194,
+     "requests": 6001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "91.97%",
+      "mem": "484.9MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-event",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=event&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 2.964425,
+     "p95": 5.079463100000001,
+     "p99": 8.67247958000001,
+     "max": 25.54428,
+     "avg": 3.240080675666672,
+     "rps": 199.99226087948153,
+     "requests": 6000,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "53.98%",
+      "mem": "484.3MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-event-inline",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=event-inline&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "20s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "Spring: pool deadlock; Jakarta: compare JTA behaviour",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 7.651779,
+     "p95": 17.007604,
+     "p99": 34.792302,
+     "max": 106.688807,
+     "avg": 9.236449839040239,
+     "rps": 199.9620835805396,
+     "requests": 4001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "45.41%",
+      "mem": "480.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-async-virtual-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking-async?executor=virtual",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "blocking chain on a managed executor, JAX-RS async response",
+    "rep": null,
+    "result": {
+     "k6_exit": 99,
+     "p50": 10000.098497,
+     "p95": 10000.959438,
+     "p99": 10001.8883735,
+     "max": 10065.208341,
+     "avg": 9998.62907603191,
+     "rps": 203.73934447886936,
+     "requests": 8151,
+     "failed_rate": 1,
+     "dropped": 3850,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "57.74%",
+      "mem": "552.8MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-async-default-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking-async?executor=default",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "blocking chain on a managed executor, JAX-RS async response",
+    "rep": null,
+    "result": {
+     "k6_exit": 99,
+     "p50": 9990.4432055,
+     "p95": 10000.92845745,
+     "p99": 10020.62349029,
+     "max": 10225.08525,
+     "avg": 9992.053628966,
+     "rps": 179.99143321751538,
+     "requests": 7202,
+     "failed_rate": 1,
+     "dropped": 4798,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "147.89%",
+      "mem": "768.6MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ],
+  "di2": {
+   "captive_captured": {
+    "calls": 5,
+    "distinct_ids": 1
+   },
+   "captive_provider": {
+    "calls": 5,
+    "distinct_ids": 5
+   },
+   "mutable_singleton": {
+    "requests": 600,
+    "wrong_user_returned": 568
+   },
+   "mutable_request": {
+    "requests": 600,
+    "wrong_user_returned": 0
+   }
+  },
+  "events": {
+   "product": 843786,
+   "committed_changes": 200,
+   "request_errors": 0,
+   "audit_delta": 100,
+   "rollbacks_sent": 20,
+   "rollback_http_errors": 20,
+   "final_cents": 500,
+   "rolled_back_price_visible": false,
+   "p50_ms": 113.08945005293936
+  }
+ },
+ {
+  "id": "v2-new-dotnet10",
+  "title": ".NET 10: real DB pool, outbox events, DI",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "10.0"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 4,
+   "threadPool": 5,
+   "image": "backend-engineering-lab-full-dotnet sha256:d15d83080c1accd1481a78a6c2c9f6d8ccc82d5d212296ec62885f0be0302d4a",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "dbpool-5-100rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=5&ms=30",
+    "rate": 100,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 5, 30 ms per connection: capacity ~166 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 31.885819,
+     "p95": 32.77697,
+     "p99": 33.526058,
+     "max": 77.185712,
+     "avg": 32.057369266911095,
+     "rps": 99.92218258533212,
+     "requests": 3001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "20.67%",
+      "mem": "99.13MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-5-300rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=5&ms=30",
+    "rate": 300,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 5, 30 ms per connection: capacity ~166 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 99,
+     "p50": 1019.534112,
+     "p95": 1031.7848250999998,
+     "p99": 1033.61103524,
+     "max": 1071.261672,
+     "avg": 994.2170010164963,
+     "rps": 283.2592410898686,
+     "requests": 8788,
+     "failed_rate": 0.4436731907146108,
+     "dropped": 213,
+     "vus_max": 313,
+     "container": {
+      "cpu": "53.17%",
+      "mem": "142.7MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-20-100rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=20&ms=30",
+    "rate": 100,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 20, 30 ms per connection: capacity ~666 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 31.826481,
+     "p95": 32.524568,
+     "p99": 33.074785,
+     "max": 40.964685,
+     "avg": 31.876125876374566,
+     "rps": 99.92137667331245,
+     "requests": 3001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "17.42%",
+      "mem": "151.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "dbpool-20-300rps",
+    "lab": "08",
+    "path": "/lab/resources/db?pool=20&ms=30",
+    "rate": 300,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1500,
+    "note": "real pool of 20, 30 ms per connection: capacity ~666 req/s",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 31.639031,
+     "p95": 32.43911,
+     "p99": 33.068898,
+     "max": 37.425304,
+     "avg": 31.718007019775527,
+     "rps": 299.70158416925625,
+     "requests": 9001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 100,
+     "container": {
+      "cpu": "53.20%",
+      "mem": "152.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-direct",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=direct&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 1675.833483,
+     "p95": 2130.2577276,
+     "p99": 2176.4687116,
+     "max": 2202.215162,
+     "avg": 1490.225388643321,
+     "rps": 178.1090950925602,
+     "requests": 5669,
+     "failed_rate": 0,
+     "dropped": 331,
+     "vus_max": 423,
+     "container": {
+      "cpu": "63.38%",
+      "mem": "157.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "events-event",
+    "lab": "07",
+    "path": "/lab/events/price-change?mode=event&id=7&cents=999",
+    "rate": 200,
+    "method": "POST",
+    "duration": "30s",
+    "vus": 100,
+    "max_vus": 1000,
+    "note": "",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 658.1020535,
+     "p95": 928.40503835,
+     "p99": 955.5602753500001,
+     "max": 977.694975,
+     "avg": 694.186970322564,
+     "rps": 190.8811337253878,
+     "requests": 5912,
+     "failed_rate": 0,
+     "dropped": 89,
+     "vus_max": 189,
+     "container": {
+      "cpu": "65.03%",
+      "mem": "160.3MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ],
+  "di2": {
+   "captive_captured": {
+    "calls": 5,
+    "distinct_ids": 1
+   },
+   "captive_scoped": {
+    "calls": 5,
+    "distinct_ids": 5
+   },
+   "mutable_singleton": {
+    "requests": 600,
+    "wrong_user_returned": 582
+   },
+   "mutable_request": {
+    "requests": 600,
+    "wrong_user_returned": 0
+   }
+  },
+  "events": {
+   "product": 844124,
+   "committed_changes": 200,
+   "request_errors": 0,
+   "audit_delta": 200,
+   "rollbacks_sent": 20,
+   "rollback_http_errors": 20,
+   "final_cents": 500,
+   "rolled_back_price_visible": false,
+   "p50_ms": 233.48545003682375
+  }
+ },
+ {
+  "id": "v2-pinning-j21",
+  "title": "Spring / Java 21: virtual-thread pinning",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "21",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "thread": "http-nio-0.0.0.0-8080-exec-2",
+   "runtime": "21.0.13.1",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-app sha256:fabc56d3a04fb58b6e528a8bfcc0fb29767f3ffd6829805fcb16372440ee049c",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "pinning": {
+   "synchronized": {
+    "median_ms": 1254.5,
+    "min_ms": 1254,
+    "max_ms": 1256,
+    "carriers": "4",
+    "runtime": "21.0.13.1"
+   },
+   "reentrant": {
+    "median_ms": 50.0,
+    "min_ms": 50,
+    "max_ms": 51,
+    "carriers": "4",
+    "runtime": "21.0.13.1"
+   }
+  }
+ },
+ {
+  "id": "v2-pinning-j25",
+  "title": "Spring / Java 25: virtual-thread pinning",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "runtime": "25.0.5.1",
+   "thread": "http-nio-0.0.0.0-8080-exec-3",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-app sha256:df7139e7a20f3f43cc250474ecd7a6d30ead4f5d2f91158d18c8bf7bdb631626",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "pinning": {
+   "synchronized": {
+    "median_ms": 51.0,
+    "min_ms": 50,
+    "max_ms": 51,
+    "carriers": "4",
+    "runtime": "25.0.5.1"
+   },
+   "reentrant": {
+    "median_ms": 50.0,
+    "min_ms": 50,
+    "max_ms": 54,
+    "carriers": "4",
+    "runtime": "25.0.5.1"
+   }
+  }
+ },
+ {
+  "id": "v2-redis-spring",
+  "title": "Spring x2 + Redis: shared cache",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.5.1",
+   "thread": "http-nio-0.0.0.0-8080-exec-5",
+   "image": "backend-engineering-lab-full-app sha256:df7139e7a20f3f43cc250474ecd7a6d30ead4f5d2f91158d18c8bf7bdb631626",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "catalog-get",
+    "lab": "01",
+    "path": "/api/products/42",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.542966,
+     "p95": 1.33516,
+     "p99": 5.585312,
+     "max": 95.669223,
+     "avg": 0.8451444674922117,
+     "rps": 1999.952103145382,
+     "requests": 60001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 200,
+     "container": {
+      "cpu": "76.96%",
+      "mem": "440.4MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "redis-get",
+    "lab": "08",
+    "path": "/lab/redis/product/42?mode=distributed",
+    "rate": 2000,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 200,
+    "max_vus": 1000,
+    "note": "cache hit served from Redis (network hop)",
+    "rep": null,
+    "result": {
+     "k6_exit": 0,
+     "p50": 0.99616,
+     "p95": 6.6325595,
+     "p99": 43.957308499999996,
+     "max": 143.893397,
+     "avg": 2.574542176010406,
+     "rps": 1998.2173456792543,
+     "requests": 59951,
+     "failed_rate": 0,
+     "dropped": 51,
+     "vus_max": 225,
+     "container": {
+      "cpu": "119.20%",
+      "mem": "492.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ],
+  "redis": {
+   "none": {
+    "requests_per_round": 100,
+    "instances": 2,
+    "loads_min": 50,
+    "loads_max": 100,
+    "loads": [
+     50,
+     89,
+     97,
+     100,
+     100
+    ],
+    "client_p50_ms_median": 199.2557499324903
+   },
+   "local": {
+    "requests_per_round": 100,
+    "instances": 2,
+    "loads_min": 2,
+    "loads_max": 2,
+    "loads": [
+     2,
+     2,
+     2,
+     2,
+     2
+    ],
+    "client_p50_ms_median": 165.46265000943094
+   },
+   "distributed": {
+    "requests_per_round": 100,
+    "instances": 2,
+    "loads_min": 1,
+    "loads_max": 1,
+    "loads": [
+     1,
+     1,
+     1,
+     1,
+     1
+    ],
+    "client_p50_ms_median": 175.0816999701783
+   }
+  }
+ },
+ {
+  "id": "v3-spring",
+  "title": "Spring: ownership, handler failure, cache staleness",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.5.1",
+   "thread": "http-nio-0.0.0.0-8080-exec-2",
+   "image": "backend-engineering-lab-full-app sha256:df7139e7a20f3f43cc250474ecd7a6d30ead4f5d2f91158d18c8bf7bdb631626",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "ownership": {
+   "container": {
+    "closed": 0,
+    "mode": "container",
+    "created": 100
+   },
+   "caller": {
+    "closed": 100,
+    "mode": "caller",
+    "created": 100
+   }
+  },
+  "failure": {
+   "direct": {
+    "http_status": [
+     500
+    ],
+    "price_committed": false,
+    "final_cents": -1,
+    "audit_rows": 0,
+    "outbox_pending": null
+   },
+   "event": {
+    "http_status": [
+     200
+    ],
+    "price_committed": true,
+    "final_cents": 109,
+    "audit_rows": 0,
+    "outbox_pending": null
+   }
+  },
+  "staleness": {
+   "samples_ms": [
+    5001,
+    8285,
+    6639,
+    4872,
+    3240
+   ],
+   "median_ms": 5001,
+   "max_ms": 8285,
+   "refresh_interval_s": 10
+  },
+  "di2": {
+   "captive_captured": {
+    "calls": 5,
+    "distinct_ids": 1
+   },
+   "captive_provider": {
+    "calls": 5,
+    "distinct_ids": 5
+   },
+   "mutable_singleton": {
+    "requests": 600,
+    "wrong_user_returned": 577
+   },
+   "mutable_request": {
+    "requests": 600,
+    "wrong_user_returned": 0
+   }
+  }
+ },
+ {
+  "id": "v3-jakarta",
+  "title": "Jakarta: ownership, request context in workers, handler failure, staleness",
+  "cpus": 4,
+  "env": {},
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.4.1",
+   "thread": "default task-2",
+   "image": "backend-engineering-lab-full-jakarta sha256:09d844d1ae0e71794f9645d83a999f58e0e1f12da53827094a139c098aa8e029",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "ownership": {
+   "leak": {
+    "destroyed": 0,
+    "mode": "leak",
+    "created": 100
+   },
+   "destroy": {
+    "destroyed": 100,
+    "mode": "destroy",
+    "created": 100
+   },
+   "background_plain": {
+    "mode": "plain",
+    "result": "ContextNotActiveException"
+   },
+   "background_activated": {
+    "mode": "activated",
+    "result": "ok: worker"
+   }
+  },
+  "failure": {
+   "direct": {
+    "http_status": [
+     500
+    ],
+    "price_committed": false,
+    "final_cents": -1,
+    "audit_rows": 0,
+    "outbox_pending": null
+   },
+   "event": {
+    "http_status": [
+     200
+    ],
+    "price_committed": true,
+    "final_cents": 109,
+    "audit_rows": 0,
+    "outbox_pending": null
+   }
+  },
+  "staleness": {
+   "samples_ms": [
+    5376,
+    8308,
+    6587,
+    4907,
+    3204
+   ],
+   "median_ms": 5376,
+   "max_ms": 8308,
+   "refresh_interval_s": 10
+  }
+ },
+ {
+  "id": "v3-dotnet10",
+  "title": ".NET 10: ownership, outbox retry, staleness",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "10.0"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 4,
+   "threadPool": 5,
+   "image": "backend-engineering-lab-full-dotnet sha256:d15d83080c1accd1481a78a6c2c9f6d8ccc82d5d212296ec62885f0be0302d4a",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "ownership": {
+   "root": {
+    "mode": "root",
+    "created": 100,
+    "disposed": 0
+   },
+   "scope": {
+    "mode": "scope",
+    "created": 100,
+    "disposed": 100
+   }
+  },
+  "failure": {
+   "direct": {
+    "http_status": [
+     500
+    ],
+    "price_committed": false,
+    "final_cents": -1,
+    "audit_rows": 0,
+    "outbox_pending": 0
+   },
+   "event": {
+    "http_status": [
+     200
+    ],
+    "price_committed": true,
+    "final_cents": 109,
+    "audit_rows": 10,
+    "outbox_pending": 0
+   }
+  },
+  "staleness": {
+   "samples_ms": [
+    4948,
+    8325,
+    6584,
+    4901,
+    3161
+   ],
+   "median_ms": 4948,
+   "max_ms": 8325,
+   "refresh_interval_s": 10
+  }
+ },
+ {
+  "id": "v3-redis-spring",
+  "title": "Spring x2 + Redis: consistency, invalidation, failure",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "runtime": "25.0.5.1",
+   "thread": "http-nio-0.0.0.0-8080-exec-2",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-app sha256:df7139e7a20f3f43cc250474ecd7a6d30ead4f5d2f91158d18c8bf7bdb631626",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "redis2": {
+   "consistency": {
+    "db_value": "Product 42 v1795744692",
+    "instance_b_before_invalidate": "Product 42",
+    "stale_read": true,
+    "instance_b_after_invalidate": "Product 42 v1795744692",
+    "fresh_after_invalidate": true,
+    "ttl_s": 30
+   },
+   "redis_down": {
+    "source": "db-fallback",
+    "error": "QueryTimeoutException",
+    "client_ms": 510.7,
+    "catalog_api_still_ok": true
+   },
+   "redis_back": {
+    "source": "loaded-or-waited"
+   }
+  }
+ }
+]

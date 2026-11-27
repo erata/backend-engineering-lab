@@ -1,0 +1,296 @@
+[
+ {
+  "id": "v4-rep3-jakarta-saturation",
+  "title": "Jakarta EE, 400 req/s blocking: worker vs managed executors, 3 repetitions",
+  "cpus": 4,
+  "env": {},
+  "info": {
+   "virtual": false,
+   "runtime": "25.0.4.1",
+   "thread": "default task-2",
+   "image": "backend-engineering-lab-full-jakarta sha256:d1f8d3d867c34bd8d0b4afa57847fe2a3f700a41c1e9be868cc9d98ad56a6c40",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 1,
+    "result": {
+     "k6_exit": 99,
+     "p50": 10000.212484,
+     "p95": 10000.923730600001,
+     "p99": 10001.11523156,
+     "max": 10009.154053,
+     "avg": 9731.47683269078,
+     "rps": 210.30022749543198,
+     "requests": 8413,
+     "failed_rate": 0.8856531558302627,
+     "dropped": 3588,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "51.55%",
+      "mem": "524.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 2,
+    "result": {
+     "k6_exit": 99,
+     "p50": 9999.9671605,
+     "p95": 10000.88800285,
+     "p99": 10001.09913621,
+     "max": 10003.075484,
+     "avg": 9138.292324441536,
+     "rps": 213.77601673590243,
+     "requests": 8552,
+     "failed_rate": 0.8129092609915809,
+     "dropped": 3449,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "29.91%",
+      "mem": "587.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "0.6 s blocking upstream chain; needs ~240 requests in flight",
+    "rep": 3,
+    "result": {
+     "k6_exit": 99,
+     "p50": 9999.979855,
+     "p95": 10000.8840456,
+     "p99": 10001.108484960001,
+     "max": 10011.955273,
+     "avg": 9134.269571437826,
+     "rps": 213.40238186033582,
+     "requests": 8537,
+     "failed_rate": 0.812580531802741,
+     "dropped": 3464,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "24.83%",
+      "mem": "609.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-async-virtual-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking-async?executor=virtual",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "blocking chain on a managed executor, JAX-RS async response",
+    "rep": 1,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.840012,
+     "p95": 610.94461,
+     "p99": 616.999067,
+     "max": 636.377148,
+     "avg": 606.3990768240158,
+     "rps": 392.0028757487753,
+     "requests": 12001,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 400,
+     "container": {
+      "cpu": "119.98%",
+      "mem": "623.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-async-virtual-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking-async?executor=virtual",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "blocking chain on a managed executor, JAX-RS async response",
+    "rep": 2,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.5054715,
+     "p95": 608.58831655,
+     "p99": 614.35439373,
+     "max": 638.764344,
+     "avg": 605.8559334574196,
+     "rps": 392.1014370414447,
+     "requests": 12000,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 400,
+     "container": {
+      "cpu": "148.90%",
+      "mem": "610.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-async-virtual-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking-async?executor=virtual",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "blocking chain on a managed executor, JAX-RS async response",
+    "rep": 3,
+    "result": {
+     "k6_exit": 0,
+     "p50": 605.394304,
+     "p95": 608.18938725,
+     "p99": 613.25276122,
+     "max": 627.548931,
+     "avg": 605.7138920200011,
+     "rps": 392.1100927245936,
+     "requests": 12000,
+     "failed_rate": 0,
+     "dropped": 0,
+     "vus_max": 400,
+     "container": {
+      "cpu": "116.63%",
+      "mem": "590.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-async-default-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking-async?executor=default",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "blocking chain on a managed executor, JAX-RS async response",
+    "rep": 1,
+    "result": {
+     "k6_exit": 99,
+     "p50": 10000.157434,
+     "p95": 10000.8995286,
+     "p99": 10001.062643879999,
+     "max": 10027.332125,
+     "avg": 9998.706772955,
+     "rps": 204.81857421663017,
+     "requests": 8193,
+     "failed_rate": 1,
+     "dropped": 3808,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "21.24%",
+      "mem": "646.2MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-async-default-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking-async?executor=default",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "blocking chain on a managed executor, JAX-RS async response",
+    "rep": 2,
+    "result": {
+     "k6_exit": 99,
+     "p50": 9990.627776000001,
+     "p95": 10000.739644450001,
+     "p99": 10000.956226440001,
+     "max": 10009.094805,
+     "avg": 9992.800457895964,
+     "rps": 204.6789686219372,
+     "requests": 8188,
+     "failed_rate": 1,
+     "dropped": 3813,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "21.05%",
+      "mem": "723.1MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   },
+   {
+    "kind": "k6",
+    "id": "io-blocking-async-default-400rps",
+    "lab": "04",
+    "path": "/lab/io/blocking-async?executor=default",
+    "rate": 400,
+    "method": "GET",
+    "duration": "30s",
+    "vus": 400,
+    "max_vus": 3000,
+    "note": "blocking chain on a managed executor, JAX-RS async response",
+    "rep": 3,
+    "result": {
+     "k6_exit": 99,
+     "p50": 9989.141609999999,
+     "p95": 10000.502693999999,
+     "p99": 10000.89121811,
+     "max": 10008.704535,
+     "avg": 9990.0487945876,
+     "rps": 204.93192025533625,
+     "requests": 8198,
+     "failed_rate": 1,
+     "dropped": 3803,
+     "vus_max": 3000,
+     "container": {
+      "cpu": "18.33%",
+      "mem": "861.5MiB / 2GiB"
+     },
+     "settled_after": true
+    }
+   }
+  ]
+ }
+]
