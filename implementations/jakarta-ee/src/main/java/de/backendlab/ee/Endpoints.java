@@ -16,6 +16,25 @@ import jakarta.ws.rs.*;import jakarta.ws.rs.core.MediaType;import jakarta.inject
  @GET @Path("lab/io/{mode}") public CompletionStage<List<String>> io(@PathParam("mode") String mode){lab();return Experiments.io(CLIENT,System.getenv().getOrDefault("LAB_MOCK_URL","http://localhost:8090"),mode,executor);}
  @GET @Path("lab/threads/info") public Object thread(){lab();return Map.of("runtime",System.getProperty("java.version"),"thread",Thread.currentThread().getName(),"virtual",isVirtual());}
 
+ /**
+  * Lab 08: real connection pool (WildFly pools of 5 / 20, declared on {@link Api}); each request holds a connection
+  * for SELECT SLEEP(ms). Lives here because JAX-RS gives a class annotated @Path("lab/resources") precedence for every
+  * URI under that prefix, which hid stampede/pool when this endpoint had its own resource class (F14).
+  */
+ @Resource(lookup="java:app/jdbc/Pool5") javax.sql.DataSource pool5;
+ @Resource(lookup="java:app/jdbc/Pool20") javax.sql.DataSource pool20;
+ @GET @Path("lab/resources/db") public jakarta.ws.rs.core.Response db(@DefaultValue("5") @QueryParam("pool") int pool,@DefaultValue("30") @QueryParam("ms") int ms){
+  lab();if((pool!=5&&pool!=20)||ms<1||ms>1000)throw new BadRequestException("pool 5|20, ms 1..1000");
+  long t0=System.nanoTime();
+  try(var c=(pool==5?pool5:pool20).getConnection()){
+   double waitMs=(System.nanoTime()-t0)/1e6;
+   try(var st=c.prepareStatement("SELECT SLEEP(?)")){st.setDouble(1,ms/1000.0);st.execute();}
+   return jakarta.ws.rs.core.Response.ok(Map.of("pool",pool,"waitMs",waitMs)).build();
+  }catch(java.sql.SQLException e){
+   return jakarta.ws.rs.core.Response.status(jakarta.ws.rs.core.Response.Status.SERVICE_UNAVAILABLE).entity(Map.of("pool",pool,"error",String.valueOf(e.getMessage()))).build();
+  }
+ }
+
  /** Concurrency 3.1 managed executor with virtual=true, declared on {@link Api}. */
  @Resource(lookup="java:app/concurrent/virtual") ManagedExecutorService virtualExecutor;
  private ManagedExecutorService executor(String name){return switch(name){case "virtual"->virtualExecutor;case "default"->executor;default->throw new BadRequestException("executor default|virtual");};}
