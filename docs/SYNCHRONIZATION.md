@@ -22,7 +22,7 @@ Next refresh requires id > 200002 OR timestamp >= watermark.
 
 Using `>=` for timestamps prevents losing exact ties at the watermark but does not solve late commits with older timestamps, or hard deletes. Re-reading a bounded time window reduces certain risks but cannot guarantee completeness with unbounded delays. The baseline in `ProductStore.after` uses `Watermark.advance` only after applying the rows. Its inclusive time boundary can reread rows repeatedly; an intentional trade-off.
 
-`CatalogIT` contains the above real MySQL transaction schedule. It asserts that the baseline misses the late row and the journal consumer receives it. This test has been authored but not executed in the authoring environment.
+`CatalogIT` contains the above real MySQL transaction schedule. It asserts that the baseline misses the late row and the journal consumer receives it. This test passed on 2026-11-26 (JDK 25, MySQL 8.4 via Testcontainers, 131 s).
 
 ## Journal design
 

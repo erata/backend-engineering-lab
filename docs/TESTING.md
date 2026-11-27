@@ -8,14 +8,14 @@ Correctness is a prerequisite to interpreting performance. A passing negative te
 
 | Test | Intended assertion | Execution status in delivered package |
 |---|---|---|
-| `CacheContractTest.singleThreadContract` | All five strategies agree on seed, pagination, search, insert/update/delete, immutability and invalid input | JUnit suite not run here; four-strategy subset passed offline |
+| `CacheContractTest.singleThreadContract` | All five strategies agree on seed, pagination, search, insert/update/delete, immutability and invalid input | Passed (JDK 25, 2026-11-26) |
 | `unsafeIteratorFailsWithControlledWriter` | Structural modification invalidates the existing HashMap iterator | Offline equivalent passed |
 | `atomicBatchPagesNeverMixGenerations` | Readers see a complete version with locked and snapshot caches | Offline equivalent passed |
-| `concurrentReadersAndWriterPreserveIndividualRecords` | ConcurrentHashMap/Caffeine preserve tested record-level properties and final state | ConcurrentHashMap offline equivalent passed; Caffeine pending |
+| `concurrentReadersAndWriterPreserveIndividualRecords` | ConcurrentHashMap/Caffeine preserve tested record-level properties and final state | Passed, including Caffeine |
 | `RaceConditionTest` | Two reads of zero followed by writes produce a lost update; atomic and locked increments preserve both | Offline equivalent passed |
-| `WatermarkTest` | A new null-timestamp product advances ID without changing timestamp | Offline equivalent passed; not a DB test |
-| `CatalogIT` | MySQL startup, actual HTTP pagination, insert null timestamp, rename, delete, late commit contrast, rollback | Authored, not executed here |
-| `CacheBenchmark` | JMH read-only and mixed workload | Authored, not executed here |
+| `WatermarkTest` | A new null-timestamp product advances ID without changing timestamp | Passed; not a DB test |
+| `CatalogIT` | MySQL startup, actual HTTP pagination, insert null timestamp, rename, delete, late commit contrast, rollback | Passed |
+| `CacheBenchmark` | JMH read-only and mixed workload | Executed, see [benchmark report](../reports/BENCHMARK_REPORT.md) |
 
 The race uses a barrier to force both workers to read before either writes. This is a controlled interleaving, not a flaky test that hopes a race occurs on a fast laptop. The unsafe iterator test uses a completed Future to make the structural modification observable before the next traversal step. HashMap fail-fast behaviour is best-effort in unconstrained concurrent use; this does not imply every race throws.
 

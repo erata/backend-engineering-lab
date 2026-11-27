@@ -1,36 +1,75 @@
 # Developer guide
 
-## Repository
+## 1. Repository layout
 
 ```text
-implementations/spring-boot/cache-core/     Pure Java cache and experiment kernels
-implementations/spring-boot/app/            Spring Boot controllers, JDBC, scheduler, events
-implementations/spring-boot/benchmarks-jmh/ JMH runs against shared production kernels
-implementations/jakarta-ee/                 CDI, JAX-RS and managed scheduler/executor WAR
-implementations/aspnet-core/Lab.Api/        Independent .NET app and experiment kernels
-implementations/aspnet-core/Lab.Tests/      xUnit correctness tests
-implementations/aspnet-core/Lab.Benchmarks/ BenchmarkDotNet CPU/reservation tests
-labs/                                      Problem, experiment and trade-offs
-shared/                                    Contracts and workload specification
-infrastructure/mock-api/                   Common deterministic HTTP dependency
-benchmarks/k6/                             Common end-to-end workload
-observability/                             Optional monitoring configuration
-reports/                                   Raw evidence and generated reports
-tools/                                     Offline tests, smoke, reporting, Redis demo
+implementations/spring-boot/cache-core/     Pure Java cache strategies + experiment kernels (shared by Spring and Jakarta)
+implementations/spring-boot/app/            Spring Boot 4.2: controllers, JDBC, scheduler, events, Redis, DB pool, DI labs
+implementations/spring-boot/benchmarks-jmh/ JMH benchmarks against the shared kernels
+implementations/jakarta-ee/                 Jakarta EE 11 WAR for WildFly 42: JAX-RS, CDI, JTA datasources, managed executors
+implementations/aspnet-core/Lab.Api/        ASP.NET Core minimal API (.NET 10/11), ADO.NET, outbox, DI labs
+implementations/aspnet-core/Lab.Tests/      xUnit tests for the .NET kernels
+implementations/aspnet-core/Lab.Benchmarks/ BenchmarkDotNet (CPU, reservation)
+labs/NN-*/README.md                         one document per lab: problem, concepts, code, tests, benchmarks, results
+benchmarks/k6/workload.js                   the one k6 script used by every HTTP experiment
+infrastructure/mock-api/server.py           deterministic slow upstream (100/200/300 ms)
+tools/                                      suite runner, chart generator, smoke tests, offline checks
+reports/                                    raw benchmark data + BENCHMARK_REPORT.md
+docs/                                       guides, methodology, validation status, roadmap, images/ (generated charts)
+observability/                              OTel collector, Prometheus, Tempo, Grafana provisioning
 ```
 
-## Design boundaries
+```mermaid
+flowchart LR
+  subgraph Java["Maven reactor (JDK 25 build, release 17 bytecode)"]
+    core[cache-core<br/>caches + kernels]
+    app[Spring Boot app]
+    jmh[JMH benchmarks]
+    ee[Jakarta EE WAR]
+    core --> app
+    core --> jmh
+    core --> ee
+  end
+  subgraph Net[".NET solution"]
+    api[Lab.Api] --> tests[Lab.Tests]
+    api --> bdn[Lab.Benchmarks]
+  end
+  k6[k6 workload.js] -. HTTP .-> app & ee & api
+  suite[tools/run_http_suite.py] --> k6
+  suite --> charts[tools/make_charts.py] --> img[docs/images/*.svg]
+```
 
-The `ProductCache` interface separates callers from cache strategy; immutable Product values prevent mutation after publication. `RefreshCoordinator` serializes writers and acknowledges exact journal IDs after applying changes. The single-consumer restriction is essential. The Jakarta port uses explicit JDBC transactions and managed executors rather than creating unmanaged application worker pools. Its HttpClient owns internal networking resources; a fully container-managed HTTP client and lifecycle can be a further improvement. The .NET Catalog currently keeps cache selection and SQL logic together for a compact lab; splitting adapters behind interfaces would be useful as complexity grows. Do not claim all examples are Clean Architecture.
+## 2. Tools
 
-The shared Java kernel accepts an Executor from its caller. Spring supplies a fixed pool; Jakarta supplies a managed executor. .NET uses runtime-managed tasks and Parallel.For. HTTP methods return the same three ordered response bodies. CPU checksums are decimal strings to preserve signed 64-bit precision across JSON clients. The Java and .NET xorshift kernel uses identical bit operations, including unsigned shift and wrapping integer sum.
+| Tool | Purpose |
+|---|---|
+| `tools/run_http_suite.py` | Starts one backend configuration at a time (Docker Compose, CPU/memory limits), runs k6 warm-up + measured runs (optionally repeated), runs functional probes, writes `reports/http-runs/<UTC>/`. `--list`, `--only <prefix>` |
+| `tools/run_benchmark.py` | JMH runner (`--suite cache\|engineering\|all`), writes `reports/runs/<UTC>/` |
+| `tools/make_charts.py` | Regenerates every chart in `docs/images/` from the raw files (light + dark SVG) |
+| `tools/compare_http.py` | Common HTTP contract test for any edition (`--url`) |
+| `tools/smoke_api.py` | Spring CRUD + refresh smoke test |
+| `tools/check_offline.py`, `tools/check_extended.py` | Dependency-free Java checks (compile and run with the local JDK) |
+| `tools/redis_lab.py` | Standalone Redis TTL demonstration (two raw clients) |
 
-## Add an experiment
+## 3. Framework differences that matter for the labs
 
-1. Define an invariant and a workload in a lab README before writing the implementation.
-2. Keep pure algorithms independent of the server where practical; pass runtime-owned resources in.
-3. Add a local-only `/lab/...` route, input bounds and failure behavior. Do not activate negative strategies in a normal profile.
-4. Add a correctness test, a common smoke assertion and an appropriate method or HTTP benchmark. Reset state between repetitions.
-5. Update coverage and validation documents; record actual measurements only after execution. Capture commit, runtime, tool versions and machine settings.
+| Concern | Spring Boot | Jakarta EE (WildFly) | ASP.NET Core |
+|---|---|---|---|
+| Request threads | Tomcat pool (200) or virtual threads (`spring.threads.virtual.enabled`) | Undertow worker pool (16 × CPUs) | Kestrel + .NET ThreadPool (grows slowly when threads block) |
+| Background work | `ExecutorService` beans, `@Async`, `@Scheduled` | `ManagedExecutorService` / `ManagedScheduledExecutorService` (container-managed; Concurrency 3.1 adds `virtual=true`) | `BackgroundService`, `Task`, `Parallel.For` |
+| Scopes | singleton, prototype, request, session (scoped proxies) | `@ApplicationScoped`, `@RequestScoped`, `@Dependent` (client proxies for normal scopes) | singleton, scoped, transient (no proxies) |
+| Who destroys short-lived objects | **not** prototypes – the caller owns them | `@Dependent` objects live as long as their owner; `Instance.get()` needs `destroy()` | scoped/transient `IDisposable` are disposed with the scope that created them – the root scope lives until shutdown |
+| Wrong-scope detection | scoped proxy makes request beans safe to inject into singletons; prototype-in-singleton is silently captured | normal scopes are proxied (safe); `@Dependent` is captured by its owner | `ValidateScopes` throws only in Development; in Production a scoped service resolved from root silently becomes a singleton |
+| Transactions | `@Transactional` on JDBC (`DataSourceTransactionManager`) | JTA (`@Transactional`, container datasources) | explicit `MySqlTransaction` |
+| After-commit work | `@TransactionalEventListener(AFTER_COMMIT)` | `@Observes(during = AFTER_SUCCESS)` | outbox table + `BackgroundService` |
 
-The original Spring-specific architectural discussion is preserved in [ARCHITECTURE.md](ARCHITECTURE.md). This is one monorepo with independently deployable editions, not a microservice system.
+## 4. Adding an experiment
+
+1. Write the invariant and the workload in the lab README first.
+2. Keep algorithms server-independent where possible (`cache-core`), and pass container-managed executors in.
+3. Add a local-only `/lab/...` route with input bounds. Never enable negative modes outside the lab profile.
+4. Add a correctness check (unit test, `compare_http.py` assertion or suite probe) **before** any benchmark.
+5. Add a k6 experiment or probe to `tools/run_http_suite.py`, run it, keep the raw output, regenerate charts with `tools/make_charts.py`.
+6. Update the lab README, [BENCHMARK_REPORT.md](../reports/BENCHMARK_REPORT.md), [VALIDATION_STATUS.md](VALIDATION_STATUS.md) and [ROADMAP.md](ROADMAP.md).
+
+This is one monorepo with independently deployable editions, not a microservice system. The original Spring cache design is in [ARCHITECTURE.md](ARCHITECTURE.md).

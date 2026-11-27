@@ -60,7 +60,7 @@ Each edition owns its database and cache. They do not call one another. Java edi
 | Cache | HashMap, lock, ConcurrentHashMap, atomic snapshot, Caffeine | Same Java kernel | Dictionary, lock, ConcurrentDictionary, immutable dictionary, MemoryCache |
 | Testing | JUnit, Testcontainers, JMH | Java core tests, HTTP contract smoke | xUnit, BenchmarkDotNet, HTTP contract smoke |
 
-The chosen versions are build targets and still require dependency-resolution and runtime verification. Java application source targets release 17; build the full reactor with JDK 25 because inherited tests use newer JDK APIs. This allows the same Spring artifact to run on both Java versions. Java 25 is the primary runtime. .NET 10 is the LTS target and .NET 11 is an alternative target; C# defaults to 14 and 15 respectively. JDBC/ADO.NET are intentional to make transactions, timestamp predicates, commit ordering and journal acknowledgement visible. ORM comparison is outside scope.
+These versions were resolved, built and run on 2026-11-26/27 (see [validation](docs/VALIDATION_STATUS.md)). Java application source targets release 17; build the full reactor with JDK 25 because inherited tests use newer JDK APIs. This allows the same Spring artifact to run on both Java versions. Java 25 is the primary runtime. .NET 10 is the LTS target and .NET 11 is an alternative target; C# defaults to 14 and 15 respectively. JDBC/ADO.NET are intentional to make transactions, timestamp predicates, commit ordering and journal acknowledgement visible. ORM comparison is outside scope.
 
 ## 4. Lab catalogue
 
