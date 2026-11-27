@@ -45,7 +45,7 @@ Status as of 2026-11-27. Legend:
 | 08 Redis TTL demo | ◐ | ◐ | ◐ | script, not run separately |
 | Observability: metrics + traces | ✅ | ✅ | ✅ | [validation](../reports/observability/2026-11-27-validation.md) |
 | Observability: Grafana dashboard | ✅ | ◑ (Explore only) | ◑ (Explore only) | same |
-| CI workflow | ✓ | ✓ | ✓ | all three jobs green on 99c5f6a (v1.0.0), checked by the maintainer in the GitHub UI |
+| CI workflow | ✓ | ✓ | ✓ | all three jobs green on the v1.0.0 (99c5f6a) and v1.1.0 (79b4e43) commits and on current `main`, checked in the GitHub UI |
 
 ## 2. Remaining defects and limitations
 

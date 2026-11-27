@@ -63,4 +63,4 @@ How to use this guide: run the lab, read its README, then practise explaining th
 
 ## Portfolio sentence
 
-"I built a private backend engineering lab that implements the same product-catalogue scenarios in Spring Boot, Jakarta EE and ASP.NET Core, and measured caching, concurrency, async I/O, virtual threads, DI lifetimes, transactional events and resource limits under controlled load. The benchmarks also exposed real defects — a connection-pool deadlock and ThreadPool starvation — which I fixed and documented. The numbers are environment-specific; the mechanisms are what I learned."
+"I built a personal backend engineering lab that implements the same product-catalogue scenarios in Spring Boot, Jakarta EE and ASP.NET Core, and measured caching, concurrency, async I/O, virtual threads, DI lifetimes, transactional events and resource limits under controlled load. The benchmarks also exposed real defects — a connection-pool deadlock and ThreadPool starvation — which I fixed and documented. The numbers are environment-specific; the mechanisms are what I learned."

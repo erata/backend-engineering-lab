@@ -15,7 +15,7 @@
     [
       "C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.4.101-hotspot\\bin\\java.exe",
       "-jar",
-      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
+      "<repo>\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
       ".*CacheBenchmark.readOnly$",
       "-p",
       "count=100000",
@@ -24,14 +24,14 @@
       "-rf",
       "json",
       "-rff",
-      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\reports\\runs\\20261126T194918342533Z\\readOnly.json",
+      "<repo>\\reports\\runs\\20261126T194918342533Z\\readOnly.json",
       "-prof",
       "gc"
     ],
     [
       "C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.4.101-hotspot\\bin\\java.exe",
       "-jar",
-      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
+      "<repo>\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
       ".*CacheBenchmark.mixed$",
       "-p",
       "count=100000",
@@ -40,19 +40,19 @@
       "-rf",
       "json",
       "-rff",
-      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\reports\\runs\\20261126T194918342533Z\\mixed.json",
+      "<repo>\\reports\\runs\\20261126T194918342533Z\\mixed.json",
       "-prof",
       "gc"
     ],
     [
       "C:\\Program Files\\Eclipse Adoptium\\jdk-25.0.4.101-hotspot\\bin\\java.exe",
       "-jar",
-      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
+      "<repo>\\implementations\\spring-boot\\benchmarks-jmh\\target\\benchmarks.jar",
       ".*EngineeringBenchmark.*",
       "-rf",
       "json",
       "-rff",
-      "C:\\Users\\Erata\\Downloads\\backend-engineering-lab-full\\reports\\runs\\20261126T194918342533Z\\engineering.json",
+      "<repo>\\reports\\runs\\20261126T194918342533Z\\engineering.json",
       "-prof",
       "gc"
     ]

@@ -20,7 +20,7 @@ Last full validation: **2026-11-27** on Windows 11 (Intel i7-13700H, 20 logical 
 | Benchmarks: JMH, BDN, k6 (8 labs, 3 editions, repetitions) | see report | completed |
 | Redis on all editions (after v1.0.0): Jakarta/Jedis and .NET/StackExchange.Redis ports | Maven `clean package` (JDK 25), .NET build + xUnit 4/4, manual smoke on two instances each, then `run_http_suite.py --only v5` / `v5b` | **pass**: same invariants as Spring (`distributed` → 1 load on every round, stale read until invalidation, DB fallback during outages) |
 | Redis TTL demo | `tools/redis_lab.py` | not run separately (the Redis shared-cache experiment supersedes it) |
-| GitHub Actions | `.github/workflows/ci.yml` | passed: all three jobs green on 99c5f6a (v1.0.0) and on ffb720c (Redis work), as checked in the GitHub UI on 2026-11-27. Jobs are now named `spring`, `jakarta`, `dotnet` |
+| GitHub Actions | `.github/workflows/ci.yml` | passed: all three jobs green on 99c5f6a (v1.0.0), 79b4e43 (v1.1.0) and 1153080 (monitoring image updates), as checked in the GitHub UI on 2026-11-27. Jobs are now named `spring`, `jakarta`, `dotnet` |
 
 ## 2. Defects found and fixed
 

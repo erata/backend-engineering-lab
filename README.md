@@ -4,7 +4,7 @@
 
 An independently runnable, cross-framework engineering laboratory. Three implementations of one small product-catalogue scenario explore the same engineering questions without requiring a distributed product architecture. The focus is learning, correctness, repeatability and trade-offs, not declaring a universal framework winner.
 
-> **Release status (2026-11-27): built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Fifteen defects found during validation were fixed (F15 after v1.0.0: a wrongly confirmed Redis/DNS explanation), and a clean-checkout reproduction passed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
+> **Release status: v1.1.0 (2026-11-27), built, tested, benchmarked and reviewed.** All three editions build, pass their unit/integration tests and the common HTTP contract in Docker; all eight labs have measured results (JMH, BenchmarkDotNet, k6 with up to 5 repetitions); metrics and traces were verified end to end. Fifteen defects found during validation were fixed (F15 after v1.0.0: a wrongly confirmed Redis/DNS explanation), and a clean-checkout reproduction passed ([validation](docs/VALIDATION_STATUS.md)). Feature coverage per lab and framework, open observations and limitations: [completion matrix](docs/ROADMAP.md).
 >
 > **Results:** [Consolidated benchmark report](reports/BENCHMARK_REPORT.md) · [Benchmark guide](docs/BENCHMARKS.md) · [Release notes](RELEASE_NOTES.md)
 
@@ -169,7 +169,7 @@ mvn -B -f implementations/spring-boot/pom.xml verify
 dotnet test implementations/aspnet-core/Lab.Tests/Lab.Tests.csproj -f net10.0
 ```
 
-The first two Python commands compile actual portable Java sources with the locally installed JDK, without Maven dependencies. The first requires JDK 21+ for its offline test harness; the second compiles for Java 17. Full Maven tests include Caffeine and the Spring MySQL/Testcontainers scenario. All of these, plus the common HTTP smoke script against all three editions, passed on 2026-11-26 and again from a clean checkout on 2026-11-27 ([validation](docs/VALIDATION_STATUS.md)). The GitHub Actions workflow (Maven verify, offline checks, JMH smoke, .NET 10/11 tests, and the HTTP contract against all three editions in Docker) passes on the v1.0.0 commit.
+The first two Python commands compile actual portable Java sources with the locally installed JDK, without Maven dependencies. The first requires JDK 21+ for its offline test harness; the second compiles for Java 17. Full Maven tests include Caffeine and the Spring MySQL/Testcontainers scenario. All of these, plus the common HTTP smoke script against all three editions, passed on 2026-11-26 and again from a clean checkout on 2026-11-27 ([validation](docs/VALIDATION_STATUS.md)). The GitHub Actions workflow (Maven verify, offline checks, JMH smoke, .NET 10/11 tests, and the HTTP contract against all three editions in Docker) runs on every push and pull request; it passed on the v1.0.0 and v1.1.0 release commits and on the current `main`. Dependabot proposes dependency updates weekly ([.github/dependabot.yml](.github/dependabot.yml)).
 
 ## 8. Benchmark methodology
 
@@ -225,4 +225,4 @@ Redis is used for a real two-instance shared-cache experiment in Lab 08 (`docker
 - [Validation status](docs/VALIDATION_STATUS.md)
 - [Historical v0.1 README](README_V01.md)
 
-Private learning/reference lab. Report actual local measurements together with their environment and limitations. Do not present these experiments as previous employment experience.
+Personal learning/reference lab. Report actual local measurements together with their environment and limitations. Do not present these experiments as previous employment experience.
