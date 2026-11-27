@@ -6,13 +6,12 @@
 version: 2
 updates:
   # Maven reactor: cache-core, Spring Boot app, JMH benchmarks and the Jakarta EE WAR (module ../jakarta-ee).
+  # No `groups` here: Dependabot parses the reactor (all 21 dependencies, Jakarta included) but its grouped Maven
+  # update failed with "No pom.xml!" for this layout (module outside the directory); ungrouped updates avoid that path.
   - package-ecosystem: maven
     directory: /implementations/spring-boot
     schedule: { interval: weekly }
     open-pull-requests-limit: 5
-    groups:
-      maven-minor-and-patch:
-        update-types: [minor, patch]
     ignore:
       - dependency-name: "*"
         update-types: ["version-update:semver-major"]
