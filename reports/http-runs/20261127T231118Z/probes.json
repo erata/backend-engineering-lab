@@ -1,0 +1,179 @@
+[
+ {
+  "id": "v7-redis-regression-spring",
+  "title": "Spring: Redis regression checks",
+  "cpus": 4,
+  "env": {
+   "JAVA_VERSION": "25",
+   "LAB_VIRTUAL_THREADS": "false",
+   "LAB_CACHE_STRATEGY": "snapshot"
+  },
+  "info": {
+   "thread": "http-nio-0.0.0.0-8080-exec-2",
+   "runtime": "25.0.5.1",
+   "virtual": false,
+   "image": "backend-engineering-lab-full-app sha256:b92134fc3b607915e5c0103aa2ecc3e485ebaccacf14250614ba8cf8da25361b",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "redis_regression": {
+   "lock_release": {
+    "correct": true,
+    "ownerDeleted": 1,
+    "holderAfterStaleRelease": "B",
+    "bAcquiredAfterExpiry": true,
+    "staleOwnerDeleted": 0
+   },
+   "json_special_characters": {
+    "loaded_ok": true,
+    "cached_ok": true,
+    "db_fallback_ok": true
+   },
+   "single_flight_outage": [
+    {
+     "http_errors": 0,
+     "sources": {
+      "db-fallback": 50
+     },
+     "fallback_p50_ms": 703.6
+    },
+    {
+     "http_errors": 0,
+     "sources": {
+      "loaded-or-waited": 50
+     },
+     "fallback_p50_ms": 0
+    },
+    {
+     "http_errors": 0,
+     "sources": {
+      "loaded-or-waited": 50
+     },
+     "fallback_p50_ms": 0
+    }
+   ],
+   "distributed_loads": [
+    1,
+    1,
+    1
+   ],
+   "passed": true
+  }
+ },
+ {
+  "id": "v7-redis-regression-jakarta",
+  "title": "Jakarta: Redis regression checks",
+  "cpus": 4,
+  "env": {},
+  "info": {
+   "runtime": "25.0.5.1",
+   "virtual": false,
+   "thread": "default task-3",
+   "image": "backend-engineering-lab-full-jakarta sha256:b5c46df933bac90407f4d488bcba1e35f9784e1f0e5767e3cbc3bc53a786562c",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "redis_regression": {
+   "lock_release": {
+    "holderAfterStaleRelease": "B",
+    "bAcquiredAfterExpiry": true,
+    "staleOwnerDeleted": 0,
+    "correct": true,
+    "ownerDeleted": 1
+   },
+   "json_special_characters": {
+    "loaded_ok": true,
+    "cached_ok": true,
+    "db_fallback_ok": true
+   },
+   "single_flight_outage": [
+    {
+     "http_errors": 0,
+     "sources": {
+      "loaded-or-waited": 50
+     },
+     "fallback_p50_ms": 0
+    },
+    {
+     "http_errors": 0,
+     "sources": {
+      "loaded-or-waited": 50
+     },
+     "fallback_p50_ms": 0
+    },
+    {
+     "http_errors": 0,
+     "sources": {
+      "loaded-or-waited": 50
+     },
+     "fallback_p50_ms": 0
+    }
+   ],
+   "distributed_loads": [
+    1,
+    1,
+    1
+   ],
+   "passed": true
+  }
+ },
+ {
+  "id": "v7-redis-regression-dotnet10",
+  "title": ".NET 10: Redis regression checks",
+  "cpus": 4,
+  "env": {
+   "DOTNET_VERSION": "10.0"
+  },
+  "info": {
+   "runtime": "10.0.15",
+   "processors": 4,
+   "threadPool": 5,
+   "image": "backend-engineering-lab-full-dotnet sha256:ea8f01650d0cb5ac27c7af2b735d634c5e806e04acb9ac45224755a1d6c4f27a",
+   "db_image": "mysql:8.4"
+  },
+  "k6": [],
+  "redis_regression": {
+   "lock_release": {
+    "bAcquiredAfterExpiry": true,
+    "staleOwnerDeleted": 0,
+    "holderAfterStaleRelease": "B",
+    "ownerDeleted": 1,
+    "correct": true
+   },
+   "json_special_characters": {
+    "loaded_ok": true,
+    "cached_ok": true,
+    "db_fallback_ok": true
+   },
+   "single_flight_outage": [
+    {
+     "http_errors": 0,
+     "sources": {
+      "db-fallback": 50
+     },
+     "fallback_p50_ms": 1395.9
+    },
+    {
+     "http_errors": 0,
+     "sources": {
+      "db-fallback": 50
+     },
+     "fallback_p50_ms": 745.1
+    },
+    {
+     "http_errors": 0,
+     "sources": {
+      "loaded-or-waited": 50
+     },
+     "fallback_p50_ms": 0
+    }
+   ],
+   "distributed_loads": [
+    1,
+    1,
+    1
+   ],
+   "passed": true
+  }
+ }
+]

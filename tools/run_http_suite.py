@@ -11,7 +11,7 @@ For every *phase* (one backend configuration) the script:
 Raw k6 summaries, probe output, environment and a Markdown report are written to reports/http-runs/<UTC>/.
 k6 runs in a container on the Compose network, so no local k6 installation is needed.
 """
-import argparse, concurrent.futures, datetime, json, os, platform, statistics, subprocess, sys, threading, time, urllib.request, urllib.error
+import argparse, collections, concurrent.futures, datetime, json, os, platform, statistics, subprocess, sys, threading, time, urllib.request, urllib.error
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -109,6 +109,11 @@ V2_PHASES = [
           extra_ports=[18084], title='Jedis, networkaddress.cache.negative.ttl=0'),
     phase('v6b-outage-jakarta-nocache', 'jakarta', {'LAB_JAVA_TOOL_OPTIONS': '-Djava.security.properties=/lab-jvm/no-dns-cache.security'}, [], ['outage'],
           extra_ports=[18084], title='Jedis, no JVM DNS cache (positive and negative TTL 0)'),
+    # v7: regression checks after the v1.1.0 code review (atomic lock release, JSON serialization, single-flight under
+    # an outage). Functional only; no load tests, so earlier benchmark results are unaffected.
+    phase('v7-redis-regression-spring', 'spring', J25P, [], ['redis_regression'], extra_ports=[18083], title='Spring: Redis regression checks'),
+    phase('v7-redis-regression-jakarta', 'jakarta', {}, [], ['redis_regression'], extra_ports=[18084], title='Jakarta: Redis regression checks'),
+    phase('v7-redis-regression-dotnet10', 'dotnet', {'DOTNET_VERSION': '10.0'}, [], ['redis_regression'], extra_ports=[18085], title='.NET 10: Redis regression checks'),
 ]
 
 PHASES = [
@@ -470,6 +475,70 @@ def probe_outage(port, reps=5):
                      'connected_clients_after': [r['connected_clients_after'] for r in runs]}
     return out
 
+def probe_redis_regression(port):
+    """Lab 08 regression checks after the v1.1.0 review:
+    1. lock release is atomic: a stale owner (expired lease) must not delete the next owner's lock;
+    2. product names with quotes, backslashes, control characters and non-ASCII survive the Redis and the DB-fallback
+       path as valid JSON;
+    3. single-flight under an outage: 50 concurrent `local` misses, Redis is frozen while the leader loads; every
+       follower must fall back to MySQL (no HTTP 500 from a wrapped leader exception);
+    4. `distributed` still loads once per round across both instances."""
+    a = f'http://127.0.0.1:{port}'; b = f'http://127.0.0.1:{PORT2[port]}'; c = f'{PROJECT}-redis-1'; res = {}
+    res['lock_release'] = call(f'{a}/lab/redis/lock-check?id=42', 'POST')
+
+    def rename(n):
+        req = urllib.request.Request(f'{a}/api/products/42', data=json.dumps({'name': n}).encode(), method='PUT',
+                                     headers={'Content-Type': 'application/json'})
+        urllib.request.urlopen(req, timeout=30).read()
+    original = call(f'{a}/api/products/42')['name']
+    tricky = 'Laptop "Pro" \\ 15″\ttab\nline üß€'
+    try:
+        rename(tricky)
+        call(f'{a}/lab/redis/reset?id=42', 'POST')
+        via_redis = call(f'{a}/lab/redis/product/42?mode=distributed')
+        cached = call(f'{b}/lab/redis/product/42?mode=distributed')          # second instance reads the cached JSON
+        sh(['docker', 'pause', c], check=False, timeout=60)
+        try:
+            via_db = call(f'{a}/lab/redis/product/42?mode=distributed')
+        finally:
+            sh(['docker', 'unpause', c], check=False, timeout=60)
+        def ok(r):
+            try: return json.loads(r['value'])['name'] == tricky
+            except Exception: return False
+        res['json_special_characters'] = {'loaded_ok': ok(via_redis), 'cached_ok': ok(cached) and cached['source'] == 'redis',
+                                          'db_fallback_ok': ok(via_db) and via_db['source'] == 'db-fallback'}
+    finally:
+        rename(original)
+        time.sleep(1)
+
+    rounds = []
+    for _ in range(3):
+        call(f'{a}/lab/redis/reset?id=42', 'POST'); time.sleep(0.5)
+        urls = [f'{a}/lab/redis/product/42?mode=local'] * 50
+        out = {}
+        def fire(): out['r'] = parallel(urls, workers=50)
+        t = threading.Thread(target=fire); t.start()
+        time.sleep(0.05)                                                    # leader is inside its 100 ms load
+        sh(['docker', 'pause', c], check=False, timeout=60)
+        t.join()
+        sh(['docker', 'unpause', c], check=False, timeout=60)
+        rs, ms = out['r']
+        rounds.append({'http_errors': sum('error' in r and 'source' not in r for r in rs),
+                       'sources': dict(collections.Counter(str(r.get('source')) for r in rs)),
+                       'fallback_p50_ms': round(statistics.median([m for r, m in zip(rs, ms) if r.get('source') == 'db-fallback'] or [0]), 1)})
+        time.sleep(1.5)
+    res['single_flight_outage'] = rounds
+
+    loads = []
+    for _ in range(3):
+        call(f'{a}/lab/redis/reset?id=42', 'POST')
+        parallel([f'{p}/lab/redis/product/42?mode=distributed' for p in (a, b) for _ in range(50)])
+        loads.append(call(f'{a}/lab/redis/loads?id=42')['loads'])
+    res['distributed_loads'] = loads
+    res['passed'] = (res['lock_release'].get('correct') is True and all(res['json_special_characters'].values())
+                     and all(r['http_errors'] == 0 for r in rounds) and loads == [1, 1, 1])
+    return res
+
 def probe_correctness(port):
     base = f'http://127.0.0.1:{port}'
     res = {}
@@ -603,7 +672,7 @@ def main():
             settle(port)
             probes = {'correctness': probe_correctness, 'cpu': probe_cpu, 'di2': probe_di2, 'events': probe_events, 'pinning': probe_pinning, 'redis': probe_redis,
                       'ownership': probe_ownership, 'failure': probe_failure, 'staleness': probe_staleness, 'redis2': probe_redis2,
-                      'outage': probe_outage}
+                      'outage': probe_outage, 'redis_regression': probe_redis_regression}
             for name in ph['probes']:
                 try: r[name] = probes[name](port)
                 except Exception as ex: r[name] = {'error': repr(ex)}
