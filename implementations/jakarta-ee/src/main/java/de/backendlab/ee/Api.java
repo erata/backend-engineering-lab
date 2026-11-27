@@ -15,7 +15,9 @@ import jakarta.annotation.sql.DataSourceDefinition;import jakarta.enterprise.con
 @DataSourceDefinition(name="java:app/jdbc/LabDS",className="com.mysql.cj.jdbc.MysqlDataSource",url=Api.URL,user="lab",password="local-lab-password",minPoolSize=0,maxPoolSize=20,transactional=true)
 @DataSourceDefinition(name="java:app/jdbc/Pool5",className="com.mysql.cj.jdbc.MysqlDataSource",url=Api.URL,user="lab",password="local-lab-password",minPoolSize=5,maxPoolSize=5,transactional=false)
 @DataSourceDefinition(name="java:app/jdbc/Pool20",className="com.mysql.cj.jdbc.MysqlDataSource",url=Api.URL,user="lab",password="local-lab-password",minPoolSize=20,maxPoolSize=20,transactional=false)
-@ManagedExecutorDefinition(name="java:app/concurrent/virtual",virtual=true)
+// maxAsync must be set explicitly: the WildFly (Concurro) implementation bounds concurrent tasks with a semaphore,
+// and with the default the virtual executor ran only a handful of tasks at a time (see reports/investigations).
+@ManagedExecutorDefinition(name="java:app/concurrent/virtual",virtual=true,maxAsync=2000)
 @ApplicationPath("/") public class Api extends Application {
  static final String URL="jdbc:mysql://jakarta-db:3306/backendlab?sslMode=DISABLED&allowPublicKeyRetrieval=true&connectionTimeZone=UTC";
 }
