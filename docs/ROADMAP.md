@@ -59,7 +59,7 @@ Status as of 2026-11-27. Legend:
 - One machine, mostly single runs outside the repeated experiments; Docker quotas on a hybrid laptop.
 - In-process outbox dispatcher only; Redis lock is a lab simplification (no fencing).
 - Jakarta/.NET dashboards, agent overhead and .NET 11 local unit tests were not covered.
-- NuGet packages with moderate advisories (NU1902) should be bumped before reuse.
+- NuGet advisories (NU1902) fixed after v1.0.0: MySqlConnector 2.6.2, OpenTelemetry 1.21.0. Java dependencies are not scanned by the build; use GitHub Dependabot alerts or an OWASP dependency check before reuse.
 
 **Failed / superseded experiments (kept as raw data, not quoted)**
 - v2 `io-blocking-400rps` and `io-blocking-async-*` rows (threaded mock, F8).

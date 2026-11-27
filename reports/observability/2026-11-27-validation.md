@@ -1,6 +1,6 @@
 # Observability validation (2026-11-27)
 
-Run after all performance benchmarks, so instrumentation could not influence them. Stack: `docker-compose.monitoring.yml` (OTel Collector contrib 0.133.0, Prometheus v3.5.0, Tempo 2.8.2, Grafana 12.1.1) plus `docker-compose.otel-java.yml` (OpenTelemetry Java agent **2.34.0**, SHA-256 `DA44154CEA128257779C8A782B9651FD7C0C6AA177CD3810F9A867AC8509555D`, downloaded from the official GitHub release, not committed) and `docker-compose.otel-dotnet.yml` (OpenTelemetry .NET SDK 1.12.0, OTLP/gRPC).
+Run after all performance benchmarks, so instrumentation could not influence them. Stack: `docker-compose.monitoring.yml` (OTel Collector contrib 0.133.0, Prometheus v3.5.0, Tempo 2.8.2, Grafana 12.1.1) plus `docker-compose.otel-java.yml` (OpenTelemetry Java agent **2.34.0**, SHA-256 `DA44154CEA128257779C8A782B9651FD7C0C6AA177CD3810F9A867AC8509555D`, downloaded from the official GitHub release, not committed) and `docker-compose.otel-dotnet.yml` (OpenTelemetry .NET SDK 1.12.0, OTLP/gRPC). Re-checked after the upgrade to SDK 1.21.0 (security fix, same day): server and client request metrics arrive in Prometheus and `backendlab-dotnet` traces in Tempo.
 
 Load: 200 (Spring) / 100 (Jakarta, .NET) catalogue reads plus 10 / 5 `GET /lab/io/concurrent` calls (3 upstream HTTP calls each). Checks were made through the HTTP APIs (Prometheus `/api/v1`, Grafana `/api`, Tempo through the Grafana datasource proxy), not by looking at the UI.
 

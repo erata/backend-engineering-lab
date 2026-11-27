@@ -6,6 +6,8 @@
 - **New measurement: Redis client behaviour.** Hit latency at 2,000 req/s, and outages (Redis stopped, paused, process killed; 5 runs each) with 500 ms timeouts in every client, plus one A/B per client: Lettuce queue vs `REJECT_COMMANDS`, Jedis with JVM DNS cache settings, StackExchange.Redis heartbeat 1,000 / 500 / 100 ms. Main result: the clients differ little on a hit but a lot during an outage (~510 / 8–510 / ~1,000 ms per request); explanations are classified as confirmed or hypothesis. See [Lab 08 §7.4–7.5](labs/08-resource-management/README.md#75-redis-outages) and [report §3.8](reports/BENCHMARK_REPORT.md).
 - **Correction (F15):** a first single outage run had reported a Jedis/DNS root cause as confirmed using a JVM system property that the JDK ignores. Repeating the runs and applying the setting correctly changed the conclusion; see [VALIDATION_STATUS.md](docs/VALIDATION_STATUS.md).
 - All lab READMEs now state the test machine and why it limits the results.
+- **Security:** the NuGet advisories reported by v1.0.0 (NU1902) are fixed: MySqlConnector 2.4.0 → 2.6.2 (latest 2.x, no major upgrade), OpenTelemetry 1.12.0 → 1.21.0. `dotnet list package --vulnerable --include-transitive` reports no vulnerable packages; the contract test and end-to-end telemetry were re-run after the upgrade.
+- CI: jobs renamed `spring` / `jakarta` / `dotnet` (the Spring job used to be called `verify`); GitHub Actions moved to their current major versions (Node 24 runtime).
 - README technology table and CI status brought up to date.
 
 ## v1.0.0
@@ -54,5 +56,5 @@ See [reports/BENCHMARK_REPORT.md](reports/BENCHMARK_REPORT.md). Every number the
 - Transactional outbox in .NET only; Redis shared cache in Spring only (extended to all editions after v1.0.0, see above); no ORM experiments.
 - Open observations (listed in the report and the roadmap): Jakarta's better hot-row behaviour, WildFly's CPU per request, and two smaller unexplained details.
 - Lab endpoints are local-only and unauthenticated; negative modes exist on purpose.
-- NuGet packages with moderate advisories (NU1902) should be updated before the code is reused elsewhere.
+- NuGet packages with moderate advisories (NU1902) should be updated before the code is reused elsewhere (done after v1.0.0, see above).
 - The OpenTelemetry Java agent is not committed; download it as described in [OBSERVABILITY.md](docs/OBSERVABILITY.md).

@@ -20,7 +20,7 @@ Last full validation: **2026-11-27** on Windows 11 (Intel i7-13700H, 20 logical 
 | Benchmarks: JMH, BDN, k6 (8 labs, 3 editions, repetitions) | see report | completed |
 | Redis on all editions (after v1.0.0): Jakarta/Jedis and .NET/StackExchange.Redis ports | Maven `clean package` (JDK 25), .NET build + xUnit 4/4, manual smoke on two instances each, then `run_http_suite.py --only v5` / `v5b` | **pass**: same invariants as Spring (`distributed` → 1 load on every round, stale read until invalidation, DB fallback during outages) |
 | Redis TTL demo | `tools/redis_lab.py` | not run separately (the Redis shared-cache experiment supersedes it) |
-| GitHub Actions | `.github/workflows/ci.yml` | passed: all three jobs (verify, dotnet, jakarta) green on 99c5f6a, the v1.0.0 commit, as checked in the GitHub UI on 2026-11-27 |
+| GitHub Actions | `.github/workflows/ci.yml` | passed: all three jobs green on 99c5f6a (v1.0.0) and on ffb720c (Redis work), as checked in the GitHub UI on 2026-11-27. Jobs are now named `spring`, `jakarta`, `dotnet` |
 
 ## 2. Defects found and fixed
 
@@ -50,7 +50,7 @@ Commands and results of the fresh-clone build and tests: [ROADMAP.md §3](ROADMA
 
 - Maven must run on JDK 25 (`maven.compiler.testRelease=25`); with an older `JAVA_HOME` the build fails with "release version 25 not supported".
 - An empty `log4j-bom-2.26.1.pom` in the local Maven repository (interrupted download) breaks POM processing; delete the folder.
-- NuGet reports moderate advisories for `MySqlConnector 2.4.0` and `OpenTelemetry.* 1.12.0` (NU1902). Not relevant for the lab; bump before reusing the code.
+- NuGet advisories (NU1902) for `MySqlConnector 2.4.0` and `OpenTelemetry.* 1.12.0` were fixed after v1.0.0 (2.6.2 and 1.21.0); `dotnet list package --vulnerable --include-transitive` is clean. After the upgrade: build without warnings, xUnit 4/4, HTTP contract pass, metrics and traces re-verified in Prometheus/Tempo. Java dependencies are not scanned automatically.
 - Keep the machine awake during benchmark runs; standby invalidates a run.
 
 ## 5. Not validated
